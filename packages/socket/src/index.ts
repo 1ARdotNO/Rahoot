@@ -5,20 +5,60 @@ import Config from "@rahoot/socket/services/config"
 import Game from "@rahoot/socket/services/game"
 import Registry from "@rahoot/socket/services/registry"
 import { withGame } from "@rahoot/socket/utils/game"
+import { createServer } from "http"
 import { Server as ServerIO } from "socket.io"
+import fs from "fs"
+import path from "path"
 
-const io: Server = new ServerIO({
-  cors: {
-    origin: [env.WEB_ORIGIN],
-  },
-})
 Config.init()
 
 const registry = Registry.getInstance()
 const port = 3001
 
+const MIME_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+}
+
+const httpServer = createServer((req, res) => {
+  if (req.method === "GET" && req.url?.startsWith("/images/")) {
+    const filename = path.basename(req.url)
+    const filePath = path.join(Config.getImagesPath(), filename)
+
+    if (!fs.existsSync(filePath)) {
+      res.writeHead(404)
+      res.end("Not found")
+      return
+    }
+
+    const ext = path.extname(filename).toLowerCase()
+    const contentType = MIME_TYPES[ext] || "application/octet-stream"
+
+    res.writeHead(200, {
+      "Content-Type": contentType,
+      "Access-Control-Allow-Origin": env.WEB_ORIGIN,
+      "Cache-Control": "public, max-age=31536000",
+    })
+    fs.createReadStream(filePath).pipe(res)
+    return
+  }
+
+  res.writeHead(404)
+  res.end()
+})
+
+const io: Server = new ServerIO(httpServer, {
+  cors: {
+    origin: [env.WEB_ORIGIN],
+  },
+})
+
 console.log(`Socket server running on port ${port}`)
-io.listen(Number(port))
+httpServer.listen(port)
 
 io.on("connection", (socket) => {
   console.log(
@@ -64,6 +104,46 @@ io.on("connection", (socket) => {
       console.error("Failed to read game config:", error)
       socket.emit("manager:errorMessage", "Failed to read game config")
     }
+  })
+
+  socket.on("manager:getQuizz", (quizzId) => {
+    const quizz = Config.getQuizz(quizzId)
+
+    if (!quizz) {
+      socket.emit("manager:errorMessage", "Quizz not found")
+      return
+    }
+
+    socket.emit("manager:quizzData", quizz)
+  })
+
+  socket.on("manager:saveQuizz", ({ id, quizz, images }) => {
+    try {
+      // Save images and update question image URLs
+      for (const img of images) {
+        const savedFilename = Config.saveImage(img.filename, img.data)
+        quizz.questions[img.questionIndex].image = `${env.SOCKET_URL}/images/${savedFilename}`
+      }
+
+      const saved = Config.saveQuizz(id, quizz)
+      socket.emit("manager:quizzSaved", saved)
+      socket.emit("manager:quizzList", Config.quizz())
+    } catch (error) {
+      console.error("Failed to save quizz:", error)
+      socket.emit("manager:errorMessage", "Failed to save quizz")
+    }
+  })
+
+  socket.on("manager:deleteQuizz", (quizzId) => {
+    const deleted = Config.deleteQuizz(quizzId)
+
+    if (!deleted) {
+      socket.emit("manager:errorMessage", "Quizz not found")
+      return
+    }
+
+    socket.emit("manager:quizzDeleted", quizzId)
+    socket.emit("manager:quizzList", Config.quizz())
   })
 
   socket.on("game:create", (quizzId) => {

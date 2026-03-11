@@ -1,6 +1,7 @@
-import { QuizzWithId } from "@rahoot/common/types/game"
+import { Quizz, QuizzWithId } from "@rahoot/common/types/game"
 import fs from "fs"
 import { resolve } from "path"
+import { randomBytes } from "crypto"
 
 const inContainerPath = process.env.CONFIG_PATH
 
@@ -31,6 +32,12 @@ class Config {
           2
         )
       )
+    }
+
+    const isImagesExists = fs.existsSync(getPath("quizz/images"))
+
+    if (!isImagesExists) {
+      fs.mkdirSync(getPath("quizz/images"), { recursive: true })
     }
 
     const isQuizzExists = fs.existsSync(getPath("quizz"))
@@ -124,6 +131,62 @@ class Config {
 
       return []
     }
+  }
+  static getQuizz(id: string): QuizzWithId | null {
+    const filePath = getPath(`quizz/${id}.json`)
+
+    if (!fs.existsSync(filePath)) {
+      return null
+    }
+
+    try {
+      const data = fs.readFileSync(filePath, "utf-8")
+      return { id, ...JSON.parse(data) }
+    } catch (error) {
+      console.error("Failed to read quizz:", error)
+      return null
+    }
+  }
+
+  static saveQuizz(id: string | undefined, quizz: Quizz): QuizzWithId {
+    const quizzId = id || randomBytes(8).toString("hex")
+    const filePath = getPath(`quizz/${quizzId}.json`)
+
+    fs.writeFileSync(filePath, JSON.stringify(quizz, null, 2))
+
+    return { id: quizzId, ...quizz }
+  }
+
+  static deleteQuizz(id: string): boolean {
+    const filePath = getPath(`quizz/${id}.json`)
+
+    if (!fs.existsSync(filePath)) {
+      return false
+    }
+
+    fs.unlinkSync(filePath)
+    return true
+  }
+
+  static saveImage(filename: string, base64Data: string): string {
+    const imagesDir = getPath("quizz/images")
+
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true })
+    }
+
+    const ext = filename.split(".").pop() || "png"
+    const uniqueName = `${randomBytes(8).toString("hex")}.${ext}`
+    const filePath = resolve(imagesDir, uniqueName)
+
+    const buffer = Buffer.from(base64Data, "base64")
+    fs.writeFileSync(filePath, buffer)
+
+    return uniqueName
+  }
+
+  static getImagesPath(): string {
+    return getPath("quizz/images")
   }
 }
 
