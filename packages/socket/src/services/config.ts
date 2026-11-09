@@ -1,6 +1,33 @@
-import { QuizzWithId } from "@rahoot/common/types/game"
+import { Quizz, QuizzWithId } from "@rahoot/common/types/game"
 import fs from "fs"
 import { resolve } from "path"
+import { quizzIdValidator } from "@rahoot/common/validators/quizz"
+import { randomBytes } from "crypto"
+
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+const detectImageExtension = (buffer: Buffer): string | null => {
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "png"
+  }
+
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "jpg"
+  }
+
+  if (buffer.subarray(0, 4).toString("ascii") === "GIF8") {
+    return "gif"
+  }
+
+  if (
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "webp"
+  }
+
+  return null
+}
 
 const inContainerPath = process.env.CONFIG_PATH
 
@@ -74,6 +101,10 @@ class Config {
         )
       )
     }
+
+    if (!fs.existsSync(getPath("quizz/images"))) {
+      fs.mkdirSync(getPath("quizz/images"), { recursive: true })
+    }
   }
 
   static game() {
@@ -124,6 +155,80 @@ class Config {
 
       return []
     }
+  }
+
+  static getQuizz(id: string): QuizzWithId | null {
+    if (!quizzIdValidator.safeParse(id).success) {
+      return null
+    }
+
+    const filePath = getPath(`quizz/${id}.json`)
+
+    if (!fs.existsSync(filePath)) {
+      return null
+    }
+
+    try {
+      const data = fs.readFileSync(filePath, "utf-8")
+
+      return { id, ...JSON.parse(data) }
+    } catch (error) {
+      console.error("Failed to read quizz:", error)
+
+      return null
+    }
+  }
+
+  static saveQuizz(id: string | undefined, quizz: Quizz): QuizzWithId {
+    const quizzId = id ?? randomBytes(8).toString("hex")
+    quizzIdValidator.parse(quizzId)
+
+    fs.writeFileSync(
+      getPath(`quizz/${quizzId}.json`),
+      JSON.stringify(quizz, null, 2),
+    )
+
+    return { id: quizzId, ...quizz }
+  }
+
+  static deleteQuizz(id: string): boolean {
+    if (!quizzIdValidator.safeParse(id).success) {
+      return false
+    }
+
+    const filePath = getPath(`quizz/${id}.json`)
+
+    if (!fs.existsSync(filePath)) {
+      return false
+    }
+
+    fs.unlinkSync(filePath)
+
+    return true
+  }
+
+  // Extension comes from the file's magic bytes, never the client filename,
+  // so uploads can't be served back as HTML or SVG.
+  static saveImage(base64Data: string): string {
+    const buffer = Buffer.from(base64Data, "base64")
+    const ext = detectImageExtension(buffer)
+
+    if (!ext) {
+      throw new Error("Unsupported image format")
+    }
+
+    if (buffer.length > MAX_IMAGE_BYTES) {
+      throw new Error("Image too large")
+    }
+
+    const uniqueName = `${randomBytes(8).toString("hex")}.${ext}`
+    fs.writeFileSync(resolve(getPath("quizz/images"), uniqueName), buffer)
+
+    return uniqueName
+  }
+
+  static getImagesPath(): string {
+    return getPath("quizz/images")
   }
 }
 

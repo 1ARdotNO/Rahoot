@@ -62,8 +62,11 @@ COPY --from=builder /app/packages/socket/dist ./packages/socket/dist
 # Copy the game default config
 COPY --from=builder /app/config ./config
 
+# Create images directory for quiz image uploads
+RUN mkdir -p /app/config/quizz/images && chown -R nodejs:nodejs /app/config
+
 # Expose the web and socket ports
-EXPOSE 3000 5505
+EXPOSE 3000 3001
 
 # Environment variables
 ENV NODE_ENV=production
