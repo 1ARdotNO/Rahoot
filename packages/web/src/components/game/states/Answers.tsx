@@ -2,6 +2,7 @@
 
 import { CommonStatusDataMap } from "@rahoot/common/types/game/status"
 import { AnswerValue } from "@rahoot/common/types/game"
+import FillMedia from "@rahoot/web/components/game/FillMedia"
 import ChoiceAnswers from "@rahoot/web/components/game/answers/ChoiceAnswers"
 import SliderAnswer from "@rahoot/web/components/game/answers/SliderAnswer"
 import TypedAnswer from "@rahoot/web/components/game/answers/TypedAnswer"
@@ -84,7 +85,7 @@ const Answers = ({
 
   return (
     <div className="flex h-full flex-1 flex-col justify-between">
-      <div className="mx-auto inline-flex h-full w-full max-w-7xl flex-1 flex-col items-center justify-center gap-5">
+      <div className="mx-auto flex w-full max-w-[min(96vw,160rem)] flex-1 flex-col items-center justify-center gap-5 px-4 pb-4">
         <h2 className="text-center text-2xl font-bold text-white drop-shadow-lg md:text-4xl lg:text-5xl">
           {question}
         </h2>
@@ -98,22 +99,11 @@ const Answers = ({
           />
         )}
 
-        {Boolean(video) && !player && (
-          <video
-            className="m-4 mb-2 aspect-video max-h-60 w-auto rounded-md px-4 sm:max-h-100"
-            src={video}
-            autoPlay
-            controls
-          />
+        {video && !player && (
+          <FillMedia src={video} alt={question} kind="video" />
         )}
 
-        {Boolean(image) && (
-          <img
-            alt={question}
-            src={image}
-            className="mb-2 max-h-60 w-auto rounded-md px-4 sm:max-h-100"
-          />
-        )}
+        {image && <FillMedia src={image} alt={question} />}
       </div>
 
       <div>

@@ -14,6 +14,8 @@ import { PropsWithChildren, useEffect, useState } from "react"
 
 type Props = PropsWithChildren & {
   statusName: Status | undefined
+  // A new object per status update; back-to-back screens of the same kind (two slides) share a name.
+  statusData?: unknown
   onNext?: () => void
   onTogglePause?: () => void
   onSkipQuestion?: () => void
@@ -29,6 +31,7 @@ const SKIPPABLE_STATUSES: Status[] = [
 const GameWrapper = ({
   children,
   statusName,
+  statusData,
   onNext,
   onTogglePause,
   onSkipQuestion,
@@ -52,7 +55,7 @@ const GameWrapper = ({
 
   useEffect(() => {
     setIsDisabled(false)
-  }, [statusName])
+  }, [statusName, statusData])
 
   useEffect(() => {
     if (statusName !== STATUS.SELECT_ANSWER) {

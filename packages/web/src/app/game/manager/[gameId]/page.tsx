@@ -152,6 +152,7 @@ const ManagerGame = () => {
   return (
     <GameWrapper
       statusName={status?.name}
+      statusData={status?.data}
       onNext={handleSkip}
       onTogglePause={handleTogglePause}
       onSkipQuestion={handleSkipQuestion}
