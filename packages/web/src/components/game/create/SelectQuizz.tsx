@@ -41,13 +41,18 @@ const SelectQuizz = ({
 
   const handleDelete = (id: string) => (e: React.MouseEvent) => {
     e.stopPropagation()
+
     if (
-      confirm(
+      // eslint-disable-next-line no-alert
+      window.confirm(
         `Delete quiz "${quizzList.find((q) => q.id === id)?.subject}"?`,
       )
     ) {
       onDelete(id)
-      if (selected === id) setSelected(null)
+
+      if (selected === id) {
+        setSelected(null)
+      }
     }
   }
 

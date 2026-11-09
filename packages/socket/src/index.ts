@@ -1,7 +1,11 @@
 import { Server } from "@rahoot/common/types/game/socket"
 import { inviteCodeValidator } from "@rahoot/common/validators/auth"
+import {
+  quizzIdValidator,
+  quizzValidator,
+} from "@rahoot/common/validators/quizz"
 import env from "@rahoot/socket/env"
-import Config from "@rahoot/socket/services/config"
+import Config, { MAX_IMAGE_BYTES } from "@rahoot/socket/services/config"
 import Game from "@rahoot/socket/services/game"
 import Registry from "@rahoot/socket/services/registry"
 import { withGame } from "@rahoot/socket/utils/game"
@@ -15,13 +19,15 @@ Config.init()
 const registry = Registry.getInstance()
 const port = 3001
 
+// Socket ids that passed manager:auth; quiz management and game creation require it.
+const authenticatedManagers = new Set<string>()
+
 const MIME_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
-  ".svg": "image/svg+xml",
 }
 
 const httpServer = createServer((req, res) => {
@@ -29,21 +35,23 @@ const httpServer = createServer((req, res) => {
     const filename = path.basename(req.url)
     const filePath = path.join(Config.getImagesPath(), filename)
 
-    if (!fs.existsSync(filePath)) {
+    const contentType = MIME_TYPES[path.extname(filename).toLowerCase()]
+
+    if (!contentType || !fs.existsSync(filePath)) {
       res.writeHead(404)
       res.end("Not found")
+
       return
     }
 
-    const ext = path.extname(filename).toLowerCase()
-    const contentType = MIME_TYPES[ext] || "application/octet-stream"
-
     res.writeHead(200, {
       "Content-Type": contentType,
+      "X-Content-Type-Options": "nosniff",
       "Access-Control-Allow-Origin": env.WEB_ORIGIN,
       "Cache-Control": "public, max-age=31536000",
     })
     fs.createReadStream(filePath).pipe(res)
+
     return
   }
 
@@ -52,6 +60,8 @@ const httpServer = createServer((req, res) => {
 })
 
 const io: Server = new ServerIO(httpServer, {
+  // Base64 inflates uploads by ~4/3; leave headroom for several images per save.
+  maxHttpBufferSize: MAX_IMAGE_BYTES * 4,
   cors: {
     origin: [env.WEB_ORIGIN],
   },
@@ -99,6 +109,7 @@ io.on("connection", (socket) => {
         return
       }
 
+      authenticatedManagers.add(socket.id)
       socket.emit("manager:quizzList", Config.quizz())
     } catch (error) {
       console.error("Failed to read game config:", error)
@@ -106,59 +117,103 @@ io.on("connection", (socket) => {
     }
   })
 
-  socket.on("manager:getQuizz", (quizzId) => {
-    const quizz = Config.getQuizz(quizzId)
+  const requireManager = (callback: () => void) => {
+    if (!authenticatedManagers.has(socket.id)) {
+      socket.emit("manager:errorMessage", "Unauthorized")
 
-    if (!quizz) {
-      socket.emit("manager:errorMessage", "Quizz not found")
       return
     }
 
-    socket.emit("manager:quizzData", quizz)
-  })
+    callback()
+  }
 
-  socket.on("manager:saveQuizz", ({ id, quizz, images }) => {
-    try {
-      // Save images and update question image URLs
-      for (const img of images) {
-        const savedFilename = Config.saveImage(img.filename, img.data)
-        quizz.questions[img.questionIndex].image = `${env.SOCKET_URL}/images/${savedFilename}`
+  socket.on("manager:getQuizz", (quizzId) =>
+    requireManager(() => {
+      const quizz = Config.getQuizz(quizzId)
+
+      if (!quizz) {
+        socket.emit("manager:errorMessage", "Quizz not found")
+
+        return
       }
 
-      const saved = Config.saveQuizz(id, quizz)
-      socket.emit("manager:quizzSaved", saved)
+      socket.emit("manager:quizzData", quizz)
+    }),
+  )
+
+  socket.on("manager:saveQuizz", (payload) =>
+    requireManager(() => {
+      const parsed = quizzValidator.safeParse(payload?.quizz)
+
+      if (!parsed.success) {
+        socket.emit(
+          "manager:errorMessage",
+          `Invalid quizz: ${parsed.error.issues[0].message}`,
+        )
+
+        return
+      }
+
+      if (payload.id !== undefined && !quizzIdValidator.safeParse(payload.id).success) {
+        socket.emit("manager:errorMessage", "Invalid quizz id")
+
+        return
+      }
+
+      const quizz = parsed.data
+      const images = Array.isArray(payload.images) ? payload.images : []
+
+      try {
+        for (const img of images) {
+          const question = quizz.questions[img.questionIndex]
+
+          if (!question || typeof img.data !== "string") {
+            throw new Error("Invalid image reference")
+          }
+
+          question.image = `${env.SOCKET_URL}/images/${Config.saveImage(img.data)}`
+        }
+
+        const saved = Config.saveQuizz(payload.id, quizz)
+        socket.emit("manager:quizzSaved", saved)
+        socket.emit("manager:quizzList", Config.quizz())
+      } catch (error) {
+        console.error("Failed to save quizz:", error)
+        socket.emit(
+          "manager:errorMessage",
+          error instanceof Error ? error.message : "Failed to save quizz",
+        )
+      }
+    }),
+  )
+
+  socket.on("manager:deleteQuizz", (quizzId) =>
+    requireManager(() => {
+      if (!Config.deleteQuizz(quizzId)) {
+        socket.emit("manager:errorMessage", "Quizz not found")
+
+        return
+      }
+
+      socket.emit("manager:quizzDeleted", quizzId)
       socket.emit("manager:quizzList", Config.quizz())
-    } catch (error) {
-      console.error("Failed to save quizz:", error)
-      socket.emit("manager:errorMessage", "Failed to save quizz")
-    }
-  })
+    }),
+  )
 
-  socket.on("manager:deleteQuizz", (quizzId) => {
-    const deleted = Config.deleteQuizz(quizzId)
+  socket.on("game:create", (quizzId) =>
+    requireManager(() => {
+      const quizz = Config.getQuizz(quizzId)
 
-    if (!deleted) {
-      socket.emit("manager:errorMessage", "Quizz not found")
-      return
-    }
+      if (!quizz) {
+        socket.emit("game:errorMessage", "Quizz not found")
 
-    socket.emit("manager:quizzDeleted", quizzId)
-    socket.emit("manager:quizzList", Config.quizz())
-  })
+        return
+      }
 
-  socket.on("game:create", (quizzId) => {
-    const quizzList = Config.quizz()
-    const quizz = quizzList.find((q) => q.id === quizzId)
-
-    if (!quizz) {
-      socket.emit("game:errorMessage", "Quizz not found")
-
-      return
-    }
-
-    const game = new Game(io, socket, quizz)
-    registry.addGame(game)
-  })
+      const game = new Game(io, socket, quizz)
+      registry.addGame(game)
+    }),
+  )
 
   socket.on("player:join", (inviteCode) => {
     const result = inviteCodeValidator.safeParse(inviteCode)
@@ -212,6 +267,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log(`A user disconnected : ${socket.id}`)
+    authenticatedManagers.delete(socket.id)
 
     const managerGame = registry.getGameByManagerSocketId(socket.id)
 

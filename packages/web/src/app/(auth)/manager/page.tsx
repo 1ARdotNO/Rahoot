@@ -63,7 +63,7 @@ const Manager = () => {
   const handleSave = (data: {
     id?: string
     quizz: Quizz
-    images: { questionIndex: number; data: string; filename: string }[]
+    images: { questionIndex: number; data: string }[]
   }) => {
     socket?.emit("manager:saveQuizz", data)
   }

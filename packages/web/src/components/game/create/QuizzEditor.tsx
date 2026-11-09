@@ -4,11 +4,7 @@ import { Quizz, QuizzWithId } from "@rahoot/common/types/game"
 import Button from "@rahoot/web/components/Button"
 import Input from "@rahoot/web/components/Input"
 import clsx from "clsx"
-import {
-  DragEvent,
-  useCallback,
-  useState,
-} from "react"
+import { DragEvent, useCallback, useState } from "react"
 import toast from "react-hot-toast"
 
 type QuestionDraft = {
@@ -18,18 +14,27 @@ type QuestionDraft = {
   cooldown: number
   time: number
   image?: string
-  imageFile?: { data: string; filename: string }
+  video?: string
+  audio?: string
+  imageFile?: { data: string }
 }
 
 type Props = {
   initial?: QuizzWithId | null
-  onSave: (data: {
+  onSave: (_data: {
     id?: string
     quizz: Quizz
-    images: { questionIndex: number; data: string; filename: string }[]
+    images: { questionIndex: number; data: string }[]
   }) => void
   onCancel: () => void
 }
+
+const ACCEPTED_IMAGE_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+]
 
 const emptyQuestion = (): QuestionDraft => ({
   question: "",
@@ -50,8 +55,11 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
         cooldown: q.cooldown,
         time: q.time,
         image: q.image,
+        video: q.video,
+        audio: q.audio,
       }))
     }
+
     return [emptyQuestion()]
   })
   const [expandedQuestion, setExpandedQuestion] = useState<number>(0)
@@ -61,6 +69,7 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
       setQuestions((prev) => {
         const next = [...prev]
         next[index] = { ...next[index], ...update }
+
         return next
       })
     },
@@ -75,9 +84,12 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
   const removeQuestion = (index: number) => {
     if (questions.length <= 1) {
       toast.error("Quiz must have at least one question")
+
       return
     }
+
     setQuestions((prev) => prev.filter((_, i) => i !== index))
+
     if (expandedQuestion >= index && expandedQuestion > 0) {
       setExpandedQuestion(expandedQuestion - 1)
     }
@@ -89,6 +101,7 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
       const answers = [...next[qIndex].answers]
       answers[aIndex] = value
       next[qIndex] = { ...next[qIndex], answers }
+
       return next
     })
   }
@@ -96,14 +109,18 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
   const addAnswer = (qIndex: number) => {
     setQuestions((prev) => {
       const next = [...prev]
+
       if (next[qIndex].answers.length >= 4) {
         toast.error("Maximum 4 answers per question")
+
         return prev
       }
+
       next[qIndex] = {
         ...next[qIndex],
         answers: [...next[qIndex].answers, ""],
       }
+
       return next
     })
   }
@@ -111,18 +128,24 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
   const removeAnswer = (qIndex: number, aIndex: number) => {
     setQuestions((prev) => {
       const next = [...prev]
+
       if (next[qIndex].answers.length <= 2) {
         toast.error("Minimum 2 answers per question")
+
         return prev
       }
+
       const answers = next[qIndex].answers.filter((_, i) => i !== aIndex)
-      let solution = next[qIndex].solution
+      let { solution } = next[qIndex]
+
       if (solution >= answers.length) {
         solution = 0
       } else if (aIndex < solution) {
-        solution--
+        solution -= 1
       }
+
       next[qIndex] = { ...next[qIndex], answers, solution }
+
       return next
     })
   }
@@ -130,25 +153,30 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
   const handleImageDrop = (qIndex: number) => (e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const file = e.dataTransfer.files[0]
-    if (!file) return
+    const [file] = e.dataTransfer.files
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Only image files are supported")
+    if (!file) {
+      return
+    }
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Only PNG, JPEG, GIF or WebP images are supported")
+
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Image must be under 5MB")
+
       return
     }
 
     const reader = new FileReader()
     reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1]
+      const [, base64] = (reader.result as string).split(",")
       updateQuestion(qIndex, {
         image: reader.result as string,
-        imageFile: { data: base64, filename: file.name },
+        imageFile: { data: base64 },
       })
     }
     reader.readAsDataURL(file)
@@ -157,22 +185,26 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
   const handleImageSelect = (qIndex: number) => () => {
     const input = document.createElement("input")
     input.type = "file"
-    input.accept = "image/*"
+    input.accept = ACCEPTED_IMAGE_TYPES.join(",")
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
+
+      if (!file) {
+        return
+      }
 
       if (file.size > 5 * 1024 * 1024) {
         toast.error("Image must be under 5MB")
+
         return
       }
 
       const reader = new FileReader()
       reader.onload = () => {
-        const base64 = (reader.result as string).split(",")[1]
+        const [, base64] = (reader.result as string).split(",")
         updateQuestion(qIndex, {
           image: reader.result as string,
-          imageFile: { data: base64, filename: file.name },
+          imageFile: { data: base64 },
         })
       }
       reader.readAsDataURL(file)
@@ -187,40 +219,49 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
   const handleSave = () => {
     if (!subject.trim()) {
       toast.error("Please enter a quiz title")
+
       return
     }
 
-    for (let i = 0; i < questions.length; i++) {
+    for (let i = 0; i < questions.length; i += 1) {
       const q = questions[i]
+
       if (!q.question.trim()) {
         toast.error(`Question ${i + 1} is empty`)
+
         return
       }
+
       const filledAnswers = q.answers.filter((a) => a.trim())
+
       if (filledAnswers.length < 2) {
         toast.error(`Question ${i + 1} needs at least 2 answers`)
+
         return
       }
+
       if (!q.answers[q.solution]?.trim()) {
         toast.error(`Question ${i + 1}: correct answer is empty`)
+
         return
       }
     }
 
-    const images: { questionIndex: number; data: string; filename: string }[] =
-      []
+    const images: { questionIndex: number; data: string }[] = []
     const quizz: Quizz = {
       subject: subject.trim(),
       questions: questions.map((q, i) => {
         const answers = q.answers.filter((a) => a.trim())
-        let solution = q.solution
-        if (solution >= answers.length) solution = 0
+        let { solution } = q
+
+        if (solution >= answers.length) {
+          solution = 0
+        }
 
         if (q.imageFile) {
           images.push({
             questionIndex: i,
             data: q.imageFile.data,
-            filename: q.imageFile.filename,
           })
         }
 
@@ -231,6 +272,8 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
           cooldown: q.cooldown,
           time: q.time,
           ...(q.image && !q.imageFile ? { image: q.image } : {}),
+          ...(q.video ? { video: q.video } : {}),
+          ...(q.audio ? { audio: q.audio } : {}),
         }
       }),
     }
@@ -280,7 +323,7 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
         {questions.map((q, qIndex) => (
           <div
             key={qIndex}
-            className="rounded-md border border-gray-200 overflow-hidden"
+            className="overflow-hidden rounded-md border border-gray-200"
           >
             <button
               className={clsx(
@@ -290,9 +333,7 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
                   : "hover:bg-gray-50",
               )}
               onClick={() =>
-                setExpandedQuestion(
-                  expandedQuestion === qIndex ? -1 : qIndex,
-                )
+                setExpandedQuestion(expandedQuestion === qIndex ? -1 : qIndex)
               }
             >
               <span>
@@ -432,7 +473,7 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
                       value={q.cooldown}
                       onChange={(e) =>
                         updateQuestion(qIndex, {
-                          cooldown: parseInt(e.target.value) || 1,
+                          cooldown: parseInt(e.target.value, 10) || 1,
                         })
                       }
                       className="w-full"
@@ -449,7 +490,7 @@ const QuizzEditor = ({ initial, onSave, onCancel }: Props) => {
                       value={q.time}
                       onChange={(e) =>
                         updateQuestion(qIndex, {
-                          time: parseInt(e.target.value) || 5,
+                          time: parseInt(e.target.value, 10) || 5,
                         })
                       }
                       className="w-full"

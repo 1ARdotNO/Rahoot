@@ -82,7 +82,7 @@ export interface ClientToServerEvents {
   "manager:saveQuizz": (_data: {
     id?: string
     quizz: Quizz
-    images: { questionIndex: number; data: string; filename: string }[]
+    images: { questionIndex: number; data: string }[]
   }) => void
   "manager:deleteQuizz": (_quizzId: string) => void
 
