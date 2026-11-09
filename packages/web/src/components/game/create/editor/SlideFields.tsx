@@ -31,7 +31,8 @@ const SlideFields = ({ slide, onChange }: Props) => {
           <label className="text-sm font-semibold text-gray-600">
             Content (Markdown)
           </label>
-          <div className="flex overflow-hidden rounded border border-gray-300 text-xs font-semibold">
+          {/* Wide screens show a live preview beside the editor instead of tabs. */}
+          <div className="flex overflow-hidden rounded border border-gray-300 text-xs font-semibold xl:hidden">
             {["Write", "Preview"].map((tab) => (
               <button
                 key={tab}
@@ -50,21 +51,28 @@ const SlideFields = ({ slide, onChange }: Props) => {
           </div>
         </div>
 
-        {preview ? (
-          <Markdown className="min-h-40 rounded-sm border border-gray-200 p-3 text-gray-800">
-            {slide.content || "_Nothing to preview_"}
-          </Markdown>
-        ) : (
+        <Markdown
+          className={clsx(
+            "min-h-40 rounded-sm border border-gray-200 p-3 text-gray-800 xl:hidden",
+            !preview && "hidden",
+          )}
+        >
+          {slide.content || "_Nothing to preview_"}
+        </Markdown>
+        {
           <textarea
             value={slide.content}
             onChange={(e) => onChange({ content: e.target.value })}
-            rows={8}
+            rows={14}
             placeholder={
               "## Did you know?\n\nUse **bold**, _italics_, lists:\n\n- one\n- two\n\n[links](https://example.com) and ![images](https://...)"
             }
-            className="w-full rounded-sm p-2 font-mono text-sm outline-2 outline-gray-300"
+            className={clsx(
+              "w-full rounded-sm p-2 font-mono text-sm outline-2 outline-gray-300 xl:block",
+              preview && "hidden",
+            )}
           />
-        )}
+        }
       </div>
     </>
   )

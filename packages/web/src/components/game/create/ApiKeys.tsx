@@ -1,15 +1,12 @@
 import { ApiKeyInfo } from "@rahoot/common/types/game"
 import Button from "@rahoot/web/components/Button"
 import Input from "@rahoot/web/components/Input"
+import { Card, PageHeader } from "@rahoot/web/components/manager/ui"
 import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
 import { agentInstructions } from "@rahoot/web/utils/agentInstructions"
-import { formatDateTime } from "@rahoot/web/utils/formatDate"
+import { formatRelative } from "@rahoot/web/utils/formatDate"
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
-
-type Props = {
-  onBack: () => void
-}
 
 const copy = async (text: string, what: string) => {
   try {
@@ -20,7 +17,7 @@ const copy = async (text: string, what: string) => {
   }
 }
 
-const ApiKeys = ({ onBack }: Props) => {
+const ApiKeys = () => {
   const { socket, socketUrl } = useSocket()
   const [keys, setKeys] = useState<ApiKeyInfo[] | null>(null)
   const [label, setLabel] = useState("")
@@ -55,103 +52,120 @@ const ApiKeys = ({ onBack }: Props) => {
   )
 
   return (
-    <div className="z-10 flex w-full max-w-2xl flex-col gap-4 rounded-md bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">API keys</h1>
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-sm font-semibold text-gray-600 hover:text-gray-800"
-        >
-          ← Back
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="API keys"
+        subtitle="Let scripts and AI assistants create quizzes on your behalf."
+      />
 
-      <p className="text-sm text-gray-600">
-        An API key logs in as you, with access to your quizzes and results.
-        Paste it into the manager login field, or give it to an AI assistant
-        with the instructions below so it can create quizzes for you. Keys
-        can&apos;t create or revoke other keys.
-      </p>
+      <div className="grid gap-8 xl:grid-cols-2">
+        <div className="flex flex-col gap-6">
+          <Card className="p-6">
+            <h2 className="text-lg font-bold">Create a key</h2>
+            <p className="mt-1 mb-4 text-sm text-gray-500">
+              A key logs in as you, with access to your quizzes and results. It
+              can&apos;t create or revoke other keys.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={label}
+                maxLength={60}
+                onChange={(e) => setLabel(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                placeholder="Label, e.g. ChatGPT"
+                className="min-w-0 flex-1"
+              />
+              <Button onClick={handleCreate} className="px-5">
+                Create
+              </Button>
+            </div>
 
-      {newKey && (
-        <div className="rounded-md border-2 border-green-400 bg-green-50 p-3">
-          <p className="mb-2 text-sm font-semibold text-green-800">
-            Copy your new key now. It won&apos;t be shown again.
-          </p>
-          <div className="flex gap-2">
-            <code className="flex-1 truncate rounded bg-white px-2 py-1 font-mono text-sm">
-              {newKey}
-            </code>
+            {newKey && (
+              <div className="mt-4 rounded-xl border-2 border-green-400 bg-green-50 p-4">
+                <p className="mb-2 text-sm font-semibold text-green-800">
+                  Copy your new key now. It won&apos;t be shown again.
+                </p>
+                <div className="flex gap-2">
+                  <code className="min-w-0 flex-1 truncate rounded-lg bg-white px-3 py-2 font-mono text-sm">
+                    {newKey}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => copy(newKey, "Key")}
+                    className="rounded-lg bg-green-600 px-4 text-sm font-semibold text-white hover:bg-green-700"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          <Card className="overflow-hidden">
+            <h2 className="border-b border-gray-100 px-6 py-4 text-lg font-bold">
+              Your keys{" "}
+              {keys && (
+                <span className="font-normal text-gray-400">
+                  ({keys.length}/10)
+                </span>
+              )}
+            </h2>
+            {keys?.length === 0 && (
+              <p className="px-6 py-8 text-center text-gray-500">
+                No API keys yet.
+              </p>
+            )}
+            <ul className="divide-y divide-gray-100">
+              {keys?.map((key) => (
+                <li key={key.id} className="flex items-center gap-4 px-6 py-4">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-lg">
+                    🔑
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold">{key.label}</div>
+                    <div className="text-xs text-gray-500">
+                      Created {formatRelative(key.createdAt)} ·{" "}
+                      {key.lastUsedAt
+                        ? `last used ${formatRelative(key.lastUsedAt)}`
+                        : "never used"}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRevoke(key)}
+                    className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold text-red-500 hover:bg-red-50"
+                  >
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+
+        <Card className="flex flex-col self-start p-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">
+                Instructions for your AI assistant
+              </h2>
+              <p className="text-sm text-gray-500">
+                Paste this into the chat together with what quiz you want.
+              </p>
+            </div>
             <button
               type="button"
-              onClick={() => copy(newKey, "Key")}
-              className="rounded bg-green-600 px-3 text-sm font-semibold text-white"
+              onClick={() => copy(instructions, "Instructions")}
+              className="shrink-0 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
             >
               Copy
             </button>
           </div>
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <Input
-          value={label}
-          maxLength={60}
-          onChange={(e) => setLabel(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          placeholder="Label, e.g. ChatGPT"
-          className="flex-1"
-        />
-        <Button onClick={handleCreate}>Create key</Button>
-      </div>
-
-      <div className="space-y-2">
-        {keys?.length === 0 && (
-          <p className="text-center text-sm text-gray-500">No API keys yet.</p>
-        )}
-        {keys?.map((key) => (
-          <div
-            key={key.id}
-            className="flex items-center justify-between gap-3 rounded-md p-3 outline outline-gray-300"
-          >
-            <div className="min-w-0">
-              <div className="truncate font-semibold">{key.label}</div>
-              <div className="text-xs text-gray-500">
-                Created {formatDateTime(key.createdAt)} ·{" "}
-                {key.lastUsedAt
-                  ? `last used ${formatDateTime(key.lastUsedAt)}`
-                  : "never used"}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleRevoke(key)}
-              className="shrink-0 rounded px-2 py-1 text-sm font-semibold text-red-500 hover:bg-red-50"
-            >
-              Revoke
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <details className="rounded-md border border-gray-200">
-        <summary className="cursor-pointer p-3 font-semibold">
-          Instructions for your AI assistant
-        </summary>
-        <div className="border-t border-gray-200 p-3">
-          <pre className="max-h-72 overflow-auto rounded bg-gray-100 p-3 text-xs whitespace-pre-wrap">
+          <pre className="max-h-[32rem] overflow-auto rounded-xl bg-gray-900 p-4 text-xs leading-relaxed whitespace-pre-wrap text-gray-100">
             {instructions}
           </pre>
-          <button
-            type="button"
-            onClick={() => copy(instructions, "Instructions")}
-            className="mt-2 text-sm font-semibold text-blue-600 hover:text-blue-800"
-          >
-            Copy instructions
-          </button>
-        </div>
-      </details>
+        </Card>
+      </div>
     </div>
   )
 }

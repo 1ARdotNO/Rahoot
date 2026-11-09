@@ -53,6 +53,28 @@ export const ownerDir = (base: string, owner: string | null) => {
 
 const quizzDir = (owner: string | null) => ownerDir("quizz", owner)
 
+const QUESTION_TYPES = ["single", "multiple", "truefalse", "typed", "slider"]
+
+// Tolerant of hand-edited files: the list should still render if a quiz is invalid.
+const summarizeQuizz = (
+  id: string,
+  data: { subject?: unknown; questions?: unknown },
+  mtime: Date,
+): QuizzSummary => {
+  const items = Array.isArray(data.questions) ? data.questions : []
+  const types = items.map((item) => (item?.type as string | undefined) ?? "single")
+  const questionTypes = types.filter((t) => QUESTION_TYPES.includes(t))
+
+  return {
+    id,
+    subject: String(data.subject ?? id),
+    questionCount: questionTypes.length,
+    slideCount: types.filter((t) => t === "slide").length,
+    types: [...new Set(questionTypes)] as QuizzSummary["types"],
+    updatedAt: mtime.toISOString(),
+  }
+}
+
 class Config {
   static init() {
     const isConfigFolderExists = fs.existsSync(getPath())
@@ -156,11 +178,10 @@ class Config {
         const id = file.replace(/\.json$/u, "")
 
         try {
-          const data = JSON.parse(
-            fs.readFileSync(getPath(`${dir}/${file}`), "utf-8"),
-          )
+          const filePath = getPath(`${dir}/${file}`)
+          const data = JSON.parse(fs.readFileSync(filePath, "utf-8"))
 
-          return [{ id, subject: String(data.subject ?? id) }]
+          return [summarizeQuizz(id, data, fs.statSync(filePath).mtime)]
         } catch (error) {
           console.error(`Failed to read quizz ${file}:`, error)
 

@@ -40,7 +40,14 @@ export type Answer = {
 
 export type QuizzWithId = Quizz & { id: string }
 
-export type QuizzSummary = { id: string; subject: string }
+export type QuizzSummary = {
+  id: string
+  subject: string
+  questionCount: number
+  slideCount: number
+  types: QuestionType[]
+  updatedAt: string
+}
 
 export type GameUpdateQuestion = {
   current: number

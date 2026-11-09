@@ -39,6 +39,7 @@ export type GameResult = {
 
 export type GameResultSummary = {
   id: string
+  quizzId: string
   subject: string
   startedAt: string
   completed: boolean

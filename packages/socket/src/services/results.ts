@@ -14,6 +14,7 @@ const resultPath = (owner: string | null, id: string) => {
 
 const summarize = (result: GameResult): GameResultSummary => ({
   id: result.id,
+  quizzId: result.quizzId,
   subject: result.subject,
   startedAt: result.startedAt,
   completed: result.completed,
