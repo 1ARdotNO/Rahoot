@@ -198,6 +198,19 @@ Every game is saved by default (turn off **Save results** in the game options to
 
 Files are stored as JSON in `config/results/`, or `config/results/users/<user id>/` for OIDC users, who only see their own.
 
+### 5. Bots
+
+On the join screen the host can add up to 20 bot players (🤖) and pick a difficulty for each. Click a bot to remove it.
+
+| Difficulty | Correct | Answers after (share of the timer) | Sometimes doesn't answer |
+| ---------- | ------- | ---------------------------------- | ------------------------ |
+| Easy       | ~35%    | 35–95%                             | 10%                      |
+| Medium     | ~60%    | 20–80%                             | 4%                       |
+| Hard       | ~82%    | 10–55%                             | 1%                       |
+| Genius     | ~96%    | 5–30%                              | never                    |
+
+Bots score like everyone else, pause when the game is paused, and are marked as bots in saved results.
+
 ## 🎮 How to Play
 
 1. Access the manager interface at http://localhost:3000/manager

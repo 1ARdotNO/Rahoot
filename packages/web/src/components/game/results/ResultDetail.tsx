@@ -70,7 +70,12 @@ const ResultDetail = ({ result, onBack, onDelete }: Props) => {
                   className="border-b border-gray-100"
                 >
                   <td className="py-1 pr-2 font-semibold">{player.rank}</td>
-                  <td className="py-1 pr-2">{player.username}</td>
+                  <td className="py-1 pr-2">
+                    {player.username}
+                    {player.bot && (
+                      <span className="ml-1 text-xs text-gray-400">(bot)</span>
+                    )}
+                  </td>
                   <td className="py-1 pr-2 text-right">
                     {player.correct}/
                     {result.rounds.filter((r) => !r.skipped).length}

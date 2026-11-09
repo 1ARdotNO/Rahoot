@@ -1,11 +1,22 @@
 "use client"
 
-import { Player } from "@rahoot/common/types/game"
+import { BotDifficulty, Player } from "@rahoot/common/types/game"
 import { ManagerStatusDataMap } from "@rahoot/common/types/game/status"
 import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
 import { useManagerStore } from "@rahoot/web/stores/manager"
 import { useState } from "react"
 import QRCode from "react-qr-code"
+
+const DIFFICULTIES: { value: BotDifficulty; label: string }[] = [
+  { value: "easy", label: "Easy" },
+  { value: "medium", label: "Medium" },
+  { value: "hard", label: "Hard" },
+  { value: "genius", label: "Genius" },
+]
+
+const DIFFICULTY_LABELS = Object.fromEntries(
+  DIFFICULTIES.map(({ value, label }) => [value, label]),
+) as Record<BotDifficulty, string>
 
 type Props = {
   data: ManagerStatusDataMap["SHOW_ROOM"]
@@ -17,6 +28,7 @@ const Room = ({ data: { text, inviteCode } }: Props) => {
   const { players } = useManagerStore()
   const [playerList, setPlayerList] = useState<Player[]>(players)
   const [totalPlayers, setTotalPlayers] = useState(0)
+  const [difficulty, setDifficulty] = useState<BotDifficulty>("medium")
 
   useEvent("manager:newPlayer", (player) => {
     setPlayerList([...playerList, player])
@@ -43,6 +55,12 @@ const Room = ({ data: { text, inviteCode } }: Props) => {
       gameId,
       playerId,
     })
+  }
+
+  const handleAddBot = () => {
+    if (gameId) {
+      socket?.emit("manager:addBot", { gameId, difficulty })
+    }
   }
 
   return (
@@ -78,7 +96,30 @@ const Room = ({ data: { text, inviteCode } }: Props) => {
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="mb-6 flex items-center gap-2 rounded-full bg-black/40 p-2 pl-5 text-white">
+        <span className="font-bold">Add a bot</span>
+        <select
+          value={difficulty}
+          onChange={(e) => setDifficulty(e.target.value as BotDifficulty)}
+          className="rounded-full bg-white px-3 py-1 font-semibold text-gray-800"
+          aria-label="Bot difficulty"
+        >
+          {DIFFICULTIES.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleAddBot}
+          className="bg-primary rounded-full px-4 py-1 font-bold text-white hover:brightness-110"
+        >
+          + Bot
+        </button>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-3">
         {playerList.map((player) => (
           <div
             key={player.id}
@@ -88,6 +129,11 @@ const Room = ({ data: { text, inviteCode } }: Props) => {
             <span className="cursor-pointer text-3xl drop-shadow-md hover:line-through">
               {player.username}
             </span>
+            {player.bot && (
+              <span className="ml-2 rounded bg-black/30 px-2 py-0.5 align-middle text-sm">
+                {DIFFICULTY_LABELS[player.bot]}
+              </span>
+            )}
           </div>
         ))}
       </div>

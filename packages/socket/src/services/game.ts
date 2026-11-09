@@ -9,8 +9,16 @@ import {
 import { Server, Socket } from "@rahoot/common/types/game/socket"
 import { Status, STATUS, StatusDataMap } from "@rahoot/common/types/game/status"
 import { usernameValidator } from "@rahoot/common/validators/auth"
-import { getChoices } from "@rahoot/common/validators/quizz"
+import {
+  botDifficultyValidator,
+  getChoices,
+} from "@rahoot/common/validators/quizz"
 import Commentator from "@rahoot/socket/utils/commentary"
+import {
+  createBot,
+  MAX_BOTS,
+  scheduleBotAnswers,
+} from "@rahoot/socket/utils/bots"
 import Countdown from "@rahoot/socket/utils/countdown"
 import ResultRecorder from "@rahoot/socket/utils/recorder"
 import { createInviteCode, timeToPoint } from "@rahoot/socket/utils/game"
@@ -371,6 +379,14 @@ class Game {
       totalPlayer: this.players.length,
     })
 
+    scheduleBotAnswers({
+      bots: this.players.flatMap((p) => (p.bot ? [{ id: p.id, bot: p.bot }] : [])),
+      item,
+      isActive: () => isCurrent() && this.round.accepting,
+      isPaused: () => this.paused,
+      submit: (playerId, value) => this.submitAnswer(playerId, value),
+    })
+
     await this.startCooldown(item.time)
 
     if (!isCurrent()) {
@@ -436,20 +452,17 @@ class Game {
     this.round.playersAnswers = []
   }
 
-  selectAnswer(socket: Socket, value: unknown) {
+  // Players answer with their socket id; bots with their bot id.
+  submitAnswer(playerId: string, value: unknown) {
     const item = this.currentItem
 
     if (!this.round.accepting || this.paused || !isQuestion(item)) {
       return
     }
 
-    const player = this.players.find((p) => p.id === socket.id)
+    const player = this.players.find((p) => p.id === playerId)
 
-    if (!player) {
-      return
-    }
-
-    if (this.round.playersAnswers.find((p) => p.playerId === socket.id)) {
+    if (!player || this.round.playersAnswers.some((p) => p.playerId === playerId)) {
       return
     }
 
@@ -460,17 +473,18 @@ class Game {
     }
 
     this.round.playersAnswers.push({
-      playerId: player.id,
+      playerId,
       value: answer,
       timePoints: timeToPoint(this.round.startTime, item.time),
     })
 
-    this.sendStatus(socket.id, STATUS.WAIT, {
+    this.sendStatus(playerId, STATUS.WAIT, {
       text: "Waiting for the players to answer",
     })
 
-    socket
+    this.io
       .to(this.gameId)
+      .except(playerId)
       .emit("game:playerAnswer", this.round.playersAnswers.length)
 
     this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
@@ -478,6 +492,26 @@ class Game {
     if (this.round.playersAnswers.length === this.players.length) {
       this.abortCooldown()
     }
+  }
+
+  addBot(socket: Socket, difficulty: unknown) {
+    const parsed = botDifficultyValidator.safeParse(difficulty)
+
+    if (!this.isManager(socket) || this.started || !parsed.success) {
+      return
+    }
+
+    if (this.players.filter((p) => p.bot).length >= MAX_BOTS) {
+      socket.emit("manager:errorMessage", `Maximum ${MAX_BOTS} bots per game`)
+
+      return
+    }
+
+    const bot = createBot(this.players, parsed.data)
+
+    this.players.push(bot)
+    this.io.to(this.manager.id).emit("manager:newPlayer", bot)
+    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
   }
 
   nextRound(socket: Socket) {

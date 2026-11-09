@@ -133,6 +133,10 @@ export const gameOptionsValidator = z.object({
   saveResults: z.boolean().default(true),
 })
 
+export const botDifficultyValidator = z.enum(["easy", "medium", "hard", "genius"])
+
+export type BotDifficulty = z.output<typeof botDifficultyValidator>
+
 export type QuizzItem = z.output<typeof itemShape>
 export type QuizzSlide = Extract<QuizzItem, { type: "slide" }>
 export type QuizzQuestion = Exclude<QuizzItem, QuizzSlide>

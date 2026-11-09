@@ -323,13 +323,17 @@ io.on("connection", (socket) => {
     withGame(gameId, socket, (game) => game.kickPlayer(socket, playerId)),
   )
 
+  socket.on("manager:addBot", ({ gameId, difficulty }) =>
+    withGame(gameId, socket, (game) => game.addBot(socket, difficulty)),
+  )
+
   socket.on("manager:startGame", ({ gameId }) =>
     withGame(gameId, socket, (game) => game.start(socket)),
   )
 
   socket.on("player:selectedAnswer", ({ gameId, data }) =>
     withGame(gameId, socket, (game) =>
-      game.selectAnswer(socket, data?.answer),
+      game.submitAnswer(socket.id, data?.answer),
     ),
   )
 

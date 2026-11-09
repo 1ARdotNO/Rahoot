@@ -1,6 +1,7 @@
 import { Server as ServerIO, Socket as SocketIO } from "socket.io"
 import {
   AnswerValue,
+  BotDifficulty,
   GameOptions,
   GameUpdateQuestion,
   Player,
@@ -95,6 +96,7 @@ export interface ClientToServerEvents {
   "manager:logout": (_token?: string) => void
   "manager:reconnect": (_message: { gameId: string }) => void
   "manager:kickPlayer": (_message: { gameId: string; playerId: string }) => void
+  "manager:addBot": (_message: { gameId: string; difficulty: BotDifficulty }) => void
   "manager:startGame": (_message: MessageGameId) => void
   "manager:abortQuiz": (_message: MessageGameId) => void
   "manager:nextQuestion": (_message: MessageGameId) => void

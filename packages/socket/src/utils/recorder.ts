@@ -120,6 +120,7 @@ class ResultRecorder {
         rank: index + 1,
         points: player.points,
         correct: correctCounts.get(player.username) ?? 0,
+        ...(player.bot ? { bot: true } : {}),
       }))
 
     try {

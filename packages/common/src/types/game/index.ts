@@ -1,5 +1,6 @@
 import type {
   AnswerValue,
+  BotDifficulty,
   GameOptions,
   QuestionType,
   Quizz,
@@ -10,6 +11,7 @@ import type {
 
 export type {
   AnswerValue,
+  BotDifficulty,
   GameOptions,
   QuestionType,
   Quizz,
@@ -25,6 +27,7 @@ export type Player = {
   username: string
   points: number
   streak: number
+  bot?: BotDifficulty
 }
 
 export type PublicPlayer = Pick<Player, "id" | "username" | "points">

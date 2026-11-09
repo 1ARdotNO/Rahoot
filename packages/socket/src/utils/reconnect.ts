@@ -37,7 +37,8 @@ export const reconnectManager = (game: Game, socket: Socket) => {
 
 export const reconnectPlayer = (game: Game, socket: Socket) => {
   const { clientId } = socket.handshake.auth
-  const player = game.players.find((p) => p.clientId === clientId)
+  // Bots have no socket; never let a client take one over.
+  const player = game.players.find((p) => p.clientId === clientId && !p.bot)
 
   if (!player) {
     return

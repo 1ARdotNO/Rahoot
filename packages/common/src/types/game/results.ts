@@ -22,6 +22,7 @@ export type ResultPlayer = {
   rank: number
   points: number
   correct: number
+  bot?: boolean
 }
 
 export type GameResult = {
