@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: "26.13.0"
       - name: Install pnpm (version from packageManager)
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Lint
@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: "26.13.0"
       - name: Install pnpm (version from packageManager)
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Build socket server
