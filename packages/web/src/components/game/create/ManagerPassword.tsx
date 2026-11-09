@@ -6,6 +6,14 @@ import { AuthMethods } from "@rahoot/web/hooks/useManagerSession"
 import { KeyboardEvent, useState } from "react"
 import toast from "react-hot-toast"
 
+const fieldLabel = ({ password, apiKeys }: AuthMethods) => {
+  if (password && apiKeys) {
+    return "Manager password or API key"
+  }
+
+  return password ? "Manager password" : "API key"
+}
+
 type Props = {
   methods: AuthMethods | null
   onSubmit: (_password: string) => void
@@ -44,7 +52,7 @@ const ManagerPassword = ({ methods, onSubmit }: Props) => {
         </a>
       )}
 
-      {methods.oidc && methods.password && (
+      {methods.oidc && (methods.password || methods.apiKeys) && (
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <div className="h-px flex-1 bg-gray-200" />
           or
@@ -52,13 +60,13 @@ const ManagerPassword = ({ methods, onSubmit }: Props) => {
         </div>
       )}
 
-      {methods.password && (
+      {(methods.password || methods.apiKeys) && (
         <>
           <Input
             type="password"
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Manager password"
+            placeholder={fieldLabel(methods)}
           />
           <Button onClick={handleSubmit}>Submit</Button>
         </>

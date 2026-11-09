@@ -46,3 +46,10 @@ export type GameUpdateQuestion = {
   current: number
   total: number
 }
+
+export type ApiKeyInfo = {
+  id: string
+  label: string
+  createdAt: string
+  lastUsedAt: string | null
+}

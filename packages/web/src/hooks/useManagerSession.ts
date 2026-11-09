@@ -4,6 +4,7 @@ import toast from "react-hot-toast"
 
 export type AuthMethods = {
   password: boolean
+  apiKeys: boolean
   oidc: { name: string } | null
 }
 
@@ -33,6 +34,7 @@ const useManagerSession = (onSignedOut: () => void) => {
   const { socket } = useSocket()
   const [methods, setMethods] = useState<AuthMethods | null>(null)
   const [name, setName] = useState<string | null>(null)
+  const [canManageApiKeys, setCanManageApiKeys] = useState(false)
 
   useEffect(() => {
     if (!socket) {
@@ -84,6 +86,7 @@ const useManagerSession = (onSignedOut: () => void) => {
     }
 
     setName(session.name)
+    setCanManageApiKeys(session.canManageApiKeys)
   })
 
   useEvent("manager:sessionExpired", () => {
@@ -100,7 +103,7 @@ const useManagerSession = (onSignedOut: () => void) => {
     onSignedOut()
   }
 
-  return { methods, name, logout }
+  return { methods, name, canManageApiKeys, logout }
 }
 
 export default useManagerSession

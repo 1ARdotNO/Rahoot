@@ -31,6 +31,7 @@ const OPTION_LABELS: { key: keyof GameOptions; label: string; hint: string }[] =
 type Props = {
   userName: string | null
   onLogout: () => void
+  onShowApiKeys?: () => void
   quizzList: QuizzSummary[]
   onSelect: (_id: string, _options: GameOptions) => void
   onEdit: (_id: string) => void
@@ -42,6 +43,7 @@ type Props = {
 const SelectQuizz = ({
   userName,
   onLogout,
+  onShowApiKeys,
   quizzList,
   onSelect,
   onEdit,
@@ -104,13 +106,24 @@ const SelectQuizz = ({
           <span className="truncate">
             Signed in as <span className="font-semibold">{userName}</span>
           </span>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="shrink-0 font-semibold text-gray-600 hover:text-gray-800"
-          >
-            Log out
-          </button>
+          <div className="flex shrink-0 gap-3">
+            {onShowApiKeys && (
+              <button
+                type="button"
+                onClick={onShowApiKeys}
+                className="font-semibold text-gray-600 hover:text-gray-800"
+              >
+                🔑 API keys
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onLogout}
+              className="shrink-0 font-semibold text-gray-600 hover:text-gray-800"
+            >
+              Log out
+            </button>
+          </div>
         </div>
       )}
       <div className="flex flex-col items-center justify-center">

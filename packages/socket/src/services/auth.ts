@@ -6,6 +6,7 @@ export type ManagerIdentity = {
   // Null is the shared password login, which owns the top-level quiz folder.
   owner: string | null
   name: string
+  via: "password" | "oidc" | "apiKey"
 }
 
 type Pending = { verifier: string; nonce: string; expires: number }
@@ -97,6 +98,8 @@ export const ownerFromSubject = (sub: string) =>
 
 export const authMethods = () => ({
   password: passwordEnabled,
+  // Keys belong to OIDC users, so they only exist when OIDC is on.
+  apiKeys: oidcEnabled,
   oidc: oidcEnabled ? { name: env.OIDC_PROVIDER_NAME } : null,
 })
 
@@ -177,6 +180,7 @@ export const finishLogin = async (search: string): Promise<string> => {
   handoffCodes.set(code, {
     owner: ownerFromSubject(claims.sub),
     name: name ?? claims.sub,
+    via: "oidc",
     expires: Date.now() + HANDOFF_TTL_MS,
   })
 
@@ -197,7 +201,11 @@ export const redeemHandoff = (code: unknown) => {
     return null
   }
 
-  const identity = { owner: session.owner, name: session.name }
+  const identity: ManagerIdentity = {
+    owner: session.owner,
+    name: session.name,
+    via: session.via,
+  }
 
   return { token: createSession(identity), identity }
 }
@@ -215,7 +223,7 @@ export const resumeSession = (token: unknown): ManagerIdentity | null => {
     return null
   }
 
-  return { owner: session.owner, name: session.name }
+  return { owner: session.owner, name: session.name, via: session.via }
 }
 
 export const endSession = (token: unknown) => {

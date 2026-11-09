@@ -13,6 +13,7 @@ import {
 import { STATUS } from "@rahoot/common/types/game/status"
 import ManagerPassword from "@rahoot/web/components/game/create/ManagerPassword"
 import QuizzEditor from "@rahoot/web/components/game/create/QuizzEditor"
+import ApiKeys from "@rahoot/web/components/game/create/ApiKeys"
 import SelectQuizz from "@rahoot/web/components/game/create/SelectQuizz"
 import ResultDetail from "@rahoot/web/components/game/results/ResultDetail"
 import ResultsList from "@rahoot/web/components/game/results/ResultsList"
@@ -28,6 +29,7 @@ type EditorMode =
   | { type: "create" }
   | { type: "edit"; quizz: QuizzWithId }
   | { type: "results" }
+  | { type: "apiKeys" }
   | { type: "result"; result: GameResult }
 
 const Manager = () => {
@@ -121,6 +123,10 @@ const Manager = () => {
     return <ManagerPassword methods={session.methods} onSubmit={handleAuth} />
   }
 
+  if (editorMode.type === "apiKeys") {
+    return <ApiKeys onBack={() => setEditorMode({ type: "list" })} />
+  }
+
   if (editorMode.type === "results") {
     return (
       <ResultsList
@@ -164,6 +170,11 @@ const Manager = () => {
     <SelectQuizz
       userName={session.name}
       onLogout={session.logout}
+      onShowApiKeys={
+        session.canManageApiKeys
+          ? () => setEditorMode({ type: "apiKeys" })
+          : undefined
+      }
       quizzList={quizzList}
       onSelect={handleStartGame}
       onEdit={handleEdit}

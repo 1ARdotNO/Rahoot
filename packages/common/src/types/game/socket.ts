@@ -1,5 +1,6 @@
 import { Server as ServerIO, Socket as SocketIO } from "socket.io"
 import {
+  ApiKeyInfo,
   AnswerValue,
   BotDifficulty,
   GameOptions,
@@ -65,10 +66,17 @@ export interface ServerToClientEvents {
   "manager:quizzList": (_quizzList: QuizzSummary[]) => void
   "manager:authMethods": (_methods: {
     password: boolean
+    apiKeys: boolean
     oidc: { name: string } | null
   }) => void
   // `token` is only sent when a new session is created, not on resume.
-  "manager:session": (_session: { name: string; token?: string }) => void
+  "manager:session": (_session: {
+    name: string
+    token?: string
+    canManageApiKeys: boolean
+  }) => void
+  "manager:apiKeys": (_keys: ApiKeyInfo[]) => void
+  "manager:apiKeyCreated": (_data: { key: string; info: ApiKeyInfo }) => void
   "manager:sessionExpired": () => void
   "manager:resultsList": (_results: GameResultSummary[]) => void
   "manager:resultData": (_result: GameResult) => void
@@ -94,6 +102,9 @@ export interface ClientToServerEvents {
   "manager:oidcHandoff": (_code: string) => void
   "manager:resume": (_token: string) => void
   "manager:logout": (_token?: string) => void
+  "manager:listApiKeys": () => void
+  "manager:createApiKey": (_label: string) => void
+  "manager:revokeApiKey": (_id: string) => void
   "manager:reconnect": (_message: { gameId: string }) => void
   "manager:kickPlayer": (_message: { gameId: string; playerId: string }) => void
   "manager:addBot": (_message: { gameId: string; difficulty: BotDifficulty }) => void

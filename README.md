@@ -190,6 +190,8 @@ By default the manager page uses the shared `managerPassword`. You can also log 
 | `OIDC_REDIRECT_URI`   | Optional override; defaults to `<SOCKET_URL>/auth/callback`                  |
 | `OIDC_PROVIDER_NAME`  | Login button label, default `Pocket ID`                                      |
 
+**API keys:** OIDC users can create API keys under **🔑 API keys** on the manager page. A key logs in as that user (paste it into the login field, which also appears in `oidc`-only mode). The panel includes copyable instructions so an AI assistant can create quizzes over the Socket.IO API. Keys are stored hashed in `config/api-keys.json`, can be revoked at any time, and can't be used to create or revoke other keys. Removing someone from `OIDC_ALLOWED_GROUPS` does not revoke their keys, so revoke them too (or delete their entries from the file).
+
 `WEB_ORIGIN` must be the real web URL (not `*`) when OIDC is enabled. If `OIDC_ALLOWED_GROUPS` is not set, every account on your provider can manage quizzes, so either set it or restrict the client to a group in Pocket ID. Login sessions are kept in memory and last 12 hours, so restarting the server logs everyone out.
 
 ### 4. Game results

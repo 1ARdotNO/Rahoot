@@ -6,6 +6,7 @@ import {
   quizzValidator,
 } from "@rahoot/common/validators/quizz"
 import env from "@rahoot/socket/env"
+import ApiKeys, { API_KEY_PREFIX } from "@rahoot/socket/services/apiKeys"
 import Config, { MAX_IMAGE_BYTES } from "@rahoot/socket/services/config"
 import Game from "@rahoot/socket/services/game"
 import Registry from "@rahoot/socket/services/registry"
@@ -78,7 +79,11 @@ io.on("connection", (socket) => {
 
   const signIn = (identity: ManagerIdentity, token?: string) => {
     authenticatedManagers.set(socket.id, identity)
-    socket.emit("manager:session", { name: identity.name, token })
+    socket.emit("manager:session", {
+      name: identity.name,
+      token,
+      canManageApiKeys: identity.via === "oidc",
+    })
     socket.emit("manager:quizzList", Config.quizzList(identity.owner))
   }
 
@@ -87,6 +92,26 @@ io.on("connection", (socket) => {
   })
 
   socket.on("manager:auth", (password) => {
+    // API keys work even when MANAGER_AUTH=oidc hides the shared password.
+    if (
+      authMethods().apiKeys &&
+      typeof password === "string" &&
+      password.startsWith(API_KEY_PREFIX)
+    ) {
+      const user = ApiKeys.verify(password)
+
+      if (!user) {
+        socket.emit("manager:errorMessage", "Invalid API key")
+
+        return
+      }
+
+      const identity: ManagerIdentity = { ...user, via: "apiKey" }
+      signIn(identity, createSession(identity))
+
+      return
+    }
+
     try {
       if (!checkPassword(password, Config.game().managerPassword)) {
         socket.emit("manager:errorMessage", "Invalid password")
@@ -94,7 +119,11 @@ io.on("connection", (socket) => {
         return
       }
 
-      const identity = { owner: null, name: "Manager" }
+      const identity: ManagerIdentity = {
+        owner: null,
+        name: "Manager",
+        via: "password",
+      }
       signIn(identity, createSession(identity))
     } catch (error) {
       console.error("Failed to read game config:", error)
@@ -163,6 +192,52 @@ io.on("connection", (socket) => {
 
     return { ok: true, quizz: { ...parsed.data, id: raw.id } } as const
   }
+
+  // Only interactive OIDC logins may manage keys, so a leaked key can't mint more.
+  const requireKeyManager = (callback: (_owner: string) => void) =>
+    requireManager((identity) => {
+      if (identity.via !== "oidc" || identity.owner === null) {
+        socket.emit("manager:errorMessage", "API keys need a single sign-on login")
+
+        return
+      }
+
+      callback(identity.owner)
+    })
+
+  socket.on("manager:listApiKeys", () =>
+    requireKeyManager((owner) => {
+      socket.emit("manager:apiKeys", ApiKeys.list(owner))
+    }),
+  )
+
+  socket.on("manager:createApiKey", (label) =>
+    requireKeyManager((owner) => {
+      try {
+        const name = authenticatedManagers.get(socket.id)?.name ?? owner
+        const created = ApiKeys.create(owner, name, String(label ?? ""))
+        socket.emit("manager:apiKeyCreated", created)
+        socket.emit("manager:apiKeys", ApiKeys.list(owner))
+      } catch (error) {
+        socket.emit(
+          "manager:errorMessage",
+          error instanceof Error ? error.message : "Failed to create API key",
+        )
+      }
+    }),
+  )
+
+  socket.on("manager:revokeApiKey", (id) =>
+    requireKeyManager((owner) => {
+      if (!ApiKeys.revoke(owner, id)) {
+        socket.emit("manager:errorMessage", "API key not found")
+
+        return
+      }
+
+      socket.emit("manager:apiKeys", ApiKeys.list(owner))
+    }),
+  )
 
   socket.on("manager:getQuizz", (quizzId) =>
     requireManager(({ owner }) => {
