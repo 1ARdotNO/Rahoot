@@ -1,4 +1,4 @@
-import { Quizz, QuizzWithId } from "@rahoot/common/types/game"
+import { Quizz, QuizzSummary, QuizzWithId } from "@rahoot/common/types/game"
 import fs from "fs"
 import { resolve } from "path"
 import { quizzIdValidator } from "@rahoot/common/validators/quizz"
@@ -125,39 +125,33 @@ class Config {
     return {}
   }
 
-  static quizz() {
-    const isExists = fs.existsSync(getPath("quizz"))
-
-    if (!isExists) {
+  static quizzList(): QuizzSummary[] {
+    if (!fs.existsSync(getPath("quizz"))) {
       return []
     }
 
-    try {
-      const files = fs
-        .readdirSync(getPath("quizz"))
-        .filter((file) => file.endsWith(".json"))
+    return fs
+      .readdirSync(getPath("quizz"))
+      .filter((file) => file.endsWith(".json"))
+      .flatMap((file) => {
+        const id = file.replace(/\.json$/u, "")
 
-      const quizz: QuizzWithId[] = files.map((file) => {
-        const data = fs.readFileSync(getPath(`quizz/${file}`), "utf-8")
-        const config = JSON.parse(data)
+        try {
+          const data = JSON.parse(
+            fs.readFileSync(getPath(`quizz/${file}`), "utf-8"),
+          )
 
-        const id = file.replace(".json", "")
+          return [{ id, subject: String(data.subject ?? id) }]
+        } catch (error) {
+          console.error(`Failed to read quizz ${file}:`, error)
 
-        return {
-          id,
-          ...config,
+          return []
         }
       })
-
-      return quizz || []
-    } catch (error) {
-      console.error("Failed to read quizz config:", error)
-
-      return []
-    }
   }
 
-  static getQuizz(id: string): QuizzWithId | null {
+  // Returns raw file contents; callers validate with quizzValidator.
+  static getQuizz(id: string): ({ id: string } & Record<string, unknown>) | null {
     if (!quizzIdValidator.safeParse(id).success) {
       return null
     }

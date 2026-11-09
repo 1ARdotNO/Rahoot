@@ -1,13 +1,31 @@
-import { Answer, Player, Quizz } from "@rahoot/common/types/game"
+import {
+  Answer,
+  AnswerValue,
+  GameOptions,
+  Player,
+  Quizz,
+  QuizzQuestion,
+} from "@rahoot/common/types/game"
 import { Server, Socket } from "@rahoot/common/types/game/socket"
 import { Status, STATUS, StatusDataMap } from "@rahoot/common/types/game/status"
 import { usernameValidator } from "@rahoot/common/validators/auth"
-import Registry from "@rahoot/socket/services/registry"
+import { getChoices } from "@rahoot/common/validators/quizz"
+import Countdown from "@rahoot/socket/utils/countdown"
 import { createInviteCode, timeToPoint } from "@rahoot/socket/utils/game"
+import {
+  describeSolution,
+  isQuestion,
+  parseAnswer,
+  prepareQuizz,
+} from "@rahoot/socket/utils/quizz"
+import {
+  buildResponses,
+  scoreRound,
+  toPublic,
+} from "@rahoot/socket/utils/results"
+import { reconnectManager, reconnectPlayer } from "@rahoot/socket/utils/reconnect"
 import sleep from "@rahoot/socket/utils/sleep"
 import { v4 as uuid } from "uuid"
-
-const registry = Registry.getInstance()
 
 class Game {
   io: Server
@@ -20,6 +38,7 @@ class Game {
   }
   inviteCode: string
   started: boolean
+  paused = false
 
   lastBroadcastStatus: { name: Status; data: StatusDataMap[Status] } | null =
     null
@@ -27,76 +46,90 @@ class Game {
   playerStatus: Map<string, { name: Status; data: StatusDataMap[Status] }> =
     new Map()
 
-  leaderboard: Player[]
-  tempOldLeaderboard: Player[] | null
+  leaderboard: Player[] = []
+  tempOldLeaderboard: Player[] | null = null
 
   quizz: Quizz
-  players: Player[]
+  options: GameOptions
+  players: Player[] = []
 
   round: {
-    currentQuestion: number
+    index: number
+    // Bumped on every round change; awaits in an older round see the mismatch and stop.
+    token: number
+    accepting: boolean
     playersAnswers: Answer[]
     startTime: number
+    pausedAt: number
+  } = {
+    index: 0,
+    token: 0,
+    accepting: false,
+    playersAnswers: [],
+    startTime: 0,
+    pausedAt: 0,
   }
 
-  cooldown: {
-    active: boolean
-    ms: number
-  }
+  countdown = new Countdown({
+    onTick: (remaining) => this.io.to(this.gameId).emit("game:cooldown", remaining),
+    isPaused: () => this.paused,
+  })
 
-  constructor(io: Server, socket: Socket, quizz: Quizz) {
+  constructor(io: Server, socket: Socket, quizz: Quizz, options: GameOptions) {
     if (!io) {
       throw new Error("Socket server not initialized")
     }
 
     this.io = io
     this.gameId = uuid()
-    this.manager = {
-      id: "",
-      clientId: "",
-      connected: false,
-    }
-    this.inviteCode = ""
     this.started = false
+    this.quizz = prepareQuizz(quizz, options)
+    this.options = options
 
-    this.lastBroadcastStatus = null
-    this.managerStatus = null
-    this.playerStatus = new Map()
-
-    this.leaderboard = []
-    this.tempOldLeaderboard = null
-
-    this.players = []
-
-    this.round = {
-      playersAnswers: [],
-      currentQuestion: 0,
-      startTime: 0,
-    }
-
-    this.cooldown = {
-      active: false,
-      ms: 0,
-    }
-
-    const roomInvite = createInviteCode()
-    this.inviteCode = roomInvite
+    this.inviteCode = createInviteCode()
     this.manager = {
       id: socket.id,
       clientId: socket.handshake.auth.clientId,
       connected: true,
     }
-    this.quizz = quizz
 
     socket.join(this.gameId)
     socket.emit("manager:gameCreated", {
       gameId: this.gameId,
-      inviteCode: roomInvite,
+      inviteCode: this.inviteCode,
     })
 
     console.log(
-      `New game created: ${roomInvite} subject: ${this.quizz.subject}`,
+      `New game created: ${this.inviteCode} subject: ${this.quizz.subject}`,
     )
+  }
+
+  get currentItem() {
+    return this.quizz.questions[this.round.index]
+  }
+
+  get totalQuestions() {
+    return this.quizz.questions.filter(isQuestion).length
+  }
+
+  get questionProgress() {
+    const current = this.quizz.questions
+      .slice(0, this.round.index + 1)
+      .filter(isQuestion).length
+
+    return { current: Math.max(current, 1), total: this.totalQuestions }
+  }
+
+  get hasNextItem() {
+    return this.round.index + 1 < this.quizz.questions.length
+  }
+
+  get managerPhase(): Status | undefined {
+    return (this.managerStatus ?? this.lastBroadcastStatus)?.name
+  }
+
+  isManager(socket: Socket) {
+    return this.manager.id === socket.id
   }
 
   broadcastStatus<T extends Status>(status: T, data: StatusDataMap[T]) {
@@ -142,12 +175,13 @@ class Game {
 
     socket.join(this.gameId)
 
-    const playerData = {
+    const playerData: Player = {
       id: socket.id,
       clientId: socket.handshake.auth.clientId,
       connected: true,
       username,
       points: 0,
+      streak: 0,
     }
 
     this.players.push(playerData)
@@ -159,7 +193,7 @@ class Game {
   }
 
   kickPlayer(socket: Socket, playerId: string) {
-    if (this.manager.id !== socket.id) {
+    if (!this.isManager(socket)) {
       return
     }
 
@@ -183,135 +217,45 @@ class Game {
 
   reconnect(socket: Socket) {
     const { clientId } = socket.handshake.auth
-    const isManager = this.manager.clientId === clientId
 
-    if (isManager) {
-      this.reconnectManager(socket)
+    if (this.manager.clientId === clientId) {
+      reconnectManager(this, socket)
     } else {
-      this.reconnectPlayer(socket)
+      reconnectPlayer(this, socket)
     }
   }
 
-  private reconnectManager(socket: Socket) {
-    if (this.manager.connected) {
-      socket.emit("game:reset", "Manager already connected")
-
-      return
-    }
-
-    socket.join(this.gameId)
-    this.manager.id = socket.id
-    this.manager.connected = true
-
-    const status = this.managerStatus ||
-      this.lastBroadcastStatus || {
-        name: STATUS.WAIT,
-        data: { text: "Waiting for players" },
-      }
-
-    socket.emit("manager:successReconnect", {
-      gameId: this.gameId,
-      currentQuestion: {
-        current: this.round.currentQuestion + 1,
-        total: this.quizz.questions.length,
-      },
-      status,
-      players: this.players,
-    })
-    socket.emit("game:totalPlayers", this.players.length)
-
-    registry.reactivateGame(this.gameId)
-    console.log(`Manager reconnected to game ${this.inviteCode}`)
-  }
-
-  private reconnectPlayer(socket: Socket) {
-    const { clientId } = socket.handshake.auth
-    const player = this.players.find((p) => p.clientId === clientId)
-
-    if (!player) {
-      return
-    }
-
-    if (player.connected) {
-      socket.emit("game:reset", "Player already connected")
-
-      return
-    }
-
-    socket.join(this.gameId)
-
-    const oldSocketId = player.id
-    player.id = socket.id
-    player.connected = true
-
-    const status = this.playerStatus.get(oldSocketId) ||
-      this.lastBroadcastStatus || {
-        name: STATUS.WAIT,
-        data: { text: "Waiting for players" },
-      }
-
-    if (this.playerStatus.has(oldSocketId)) {
-      const oldStatus = this.playerStatus.get(oldSocketId)!
-      this.playerStatus.delete(oldSocketId)
-      this.playerStatus.set(socket.id, oldStatus)
-    }
-
-    socket.emit("player:successReconnect", {
-      gameId: this.gameId,
-      currentQuestion: {
-        current: this.round.currentQuestion + 1,
-        total: this.quizz.questions.length,
-      },
-      status,
-      player: {
-        username: player.username,
-        points: player.points,
-      },
-    })
-    socket.emit("game:totalPlayers", this.players.length)
-    console.log(
-      `Player ${player.username} reconnected to game ${this.inviteCode}`,
-    )
-  }
-
-  startCooldown(seconds: number): Promise<void> {
-    if (this.cooldown.active) {
-      return Promise.resolve()
-    }
-
-    this.cooldown.active = true
-    let count = seconds - 1
-
-    return new Promise<void>((resolve) => {
-      const cooldownTimeout = setInterval(() => {
-        if (!this.cooldown.active || count <= 0) {
-          this.cooldown.active = false
-          clearInterval(cooldownTimeout)
-          resolve()
-
-          return
-        }
-
-        this.io.to(this.gameId).emit("game:cooldown", count)
-        count -= 1
-      }, 1000)
-    })
+  startCooldown(seconds: number) {
+    return this.countdown.start(seconds)
   }
 
   abortCooldown() {
-    this.cooldown.active &&= false
+    this.countdown.abort()
   }
 
-  async start(socket: Socket) {
-    if (this.manager.id !== socket.id) {
+  private setPaused(paused: boolean) {
+    if (this.paused === paused) {
       return
     }
 
-    if (this.started) {
+    if (paused) {
+      this.round.pausedAt = Date.now()
+    } else {
+      // Shift the start so time spent paused doesn't cost players points.
+      this.round.startTime += Date.now() - this.round.pausedAt
+    }
+
+    this.paused = paused
+    this.io.to(this.gameId).emit("game:paused", paused)
+  }
+
+  async start(socket: Socket) {
+    if (!this.isManager(socket) || this.started) {
       return
     }
 
     this.started = true
+    const {token} = this.round
 
     this.broadcastStatus(STATUS.SHOW_START, {
       time: 3,
@@ -320,137 +264,159 @@ class Game {
 
     await sleep(3)
 
+    if (!this.started || token !== this.round.token) {
+      return
+    }
+
     this.io.to(this.gameId).emit("game:startCooldown")
     await this.startCooldown(3)
+
+    if (!this.started || token !== this.round.token) {
+      return
+    }
 
     this.newRound()
   }
 
   async newRound() {
-    const question = this.quizz.questions[this.round.currentQuestion]
-
     if (!this.started) {
       return
     }
 
+    this.round.token += 1
+    const { token } = this.round
+    const isCurrent = () => this.started && token === this.round.token
+
+    this.setPaused(false)
+    this.round.accepting = false
+    this.round.playersAnswers = []
     this.playerStatus.clear()
-
-    this.io.to(this.gameId).emit("game:updateQuestion", {
-      current: this.round.currentQuestion + 1,
-      total: this.quizz.questions.length,
-    })
-
     this.managerStatus = null
+
+    const item = this.currentItem
+
+    if (!isQuestion(item)) {
+      this.broadcastStatus(STATUS.SHOW_SLIDE, {
+        title: item.title,
+        content: item.content,
+        image: item.image,
+      })
+
+      return
+    }
+
+    const { current, total } = this.questionProgress
+    const choices = getChoices(item)
+
+    this.io.to(this.gameId).emit("game:updateQuestion", { current, total })
+
     this.broadcastStatus(STATUS.SHOW_PREPARED, {
-      totalAnswers: question.answers.length,
-      questionNumber: this.round.currentQuestion + 1,
+      type: item.type,
+      totalAnswers: choices.length,
+      questionNumber: current,
     })
 
     await sleep(2)
 
-    if (!this.started) {
+    if (!isCurrent()) {
       return
     }
 
     this.broadcastStatus(STATUS.SHOW_QUESTION, {
-      question: question.question,
-      image: question.image,
-      cooldown: question.cooldown,
+      question: item.question,
+      image: item.image,
+      cooldown: item.cooldown,
     })
 
-    await sleep(question.cooldown)
+    await sleep(item.cooldown)
 
-    if (!this.started) {
+    if (!isCurrent()) {
       return
     }
 
     this.round.startTime = Date.now()
+    this.round.accepting = true
 
     this.broadcastStatus(STATUS.SELECT_ANSWER, {
-      question: question.question,
-      answers: question.answers,
-      image: question.image,
-      video: question.video,
-      audio: question.audio,
-      time: question.time,
+      type: item.type,
+      question: item.question,
+      answers: choices,
+      slider:
+        item.type === "slider"
+          ? { min: item.min, max: item.max, step: item.step }
+          : undefined,
+      image: item.image,
+      video: item.video,
+      audio: item.audio,
+      time: item.time,
       totalPlayer: this.players.length,
     })
 
-    await this.startCooldown(question.time)
+    await this.startCooldown(item.time)
 
-    if (!this.started) {
+    if (!isCurrent()) {
       return
     }
 
-    this.showResults(question)
+    this.round.accepting = false
+    this.setPaused(false)
+    this.showResults(item)
   }
 
-  showResults(question: any) {
+  showResults(item: QuizzQuestion) {
     const oldLeaderboard =
       this.leaderboard.length === 0
         ? this.players.map((p) => ({ ...p }))
         : this.leaderboard.map((p) => ({ ...p }))
 
-    const totalType = this.round.playersAnswers.reduce(
-      (acc: Record<number, number>, { answerId }) => {
-        acc[answerId] = (acc[answerId] || 0) + 1
-
-        return acc
-      },
-      {},
+    const outcomes = scoreRound(
+      item,
+      this.players,
+      this.round.playersAnswers,
+      this.options.streakBonus,
     )
 
-    const sortedPlayers = this.players
-      .map((player) => {
-        const playerAnswer = this.round.playersAnswers.find(
-          (a) => a.playerId === player.id,
-        )
+    this.players.sort((a, b) => b.points - a.points)
 
-        const isCorrect = playerAnswer
-          ? playerAnswer.answerId === question.solution
-          : false
+    const correctAnswer = describeSolution(item)
 
-        const points =
-          playerAnswer && isCorrect ? Math.round(playerAnswer.points) : 0
-
-        player.points += points
-
-        return { ...player, lastCorrect: isCorrect, lastPoints: points }
-      })
-      .sort((a, b) => b.points - a.points)
-
-    this.players = sortedPlayers
-
-    sortedPlayers.forEach((player, index) => {
-      const rank = index + 1
-      const aheadPlayer = sortedPlayers[index - 1]
+    this.players.forEach((player, index) => {
+      const outcome = outcomes.get(player.id)!
+      const aheadPlayer = this.players[index - 1]
 
       this.sendStatus(player.id, STATUS.SHOW_RESULT, {
-        correct: player.lastCorrect,
-        message: player.lastCorrect ? "Nice!" : "Too bad",
-        points: player.lastPoints,
+        correct: outcome.correct,
+        message: outcome.message,
+        points: outcome.points,
         myPoints: player.points,
-        rank,
+        rank: index + 1,
         aheadOfMe: aheadPlayer ? aheadPlayer.username : null,
+        correctAnswer,
+        streak: this.options.streakBonus ? player.streak : 0,
+        streakBonus: outcome.bonus,
       })
     })
 
-    this.sendStatus(this.manager.id, STATUS.SHOW_RESPONSES, {
-      question: question.question,
-      responses: totalType,
-      correct: question.solution,
-      answers: question.answers,
-      image: question.image,
-    })
+    this.sendStatus(
+      this.manager.id,
+      STATUS.SHOW_RESPONSES,
+      buildResponses(item, this.round.playersAnswers),
+    )
 
-    this.leaderboard = sortedPlayers
+    this.leaderboard = this.players.map((p) => ({ ...p }))
     this.tempOldLeaderboard = oldLeaderboard
 
     this.round.playersAnswers = []
   }
-  selectAnswer(socket: Socket, answerId: number) {
-    const player = this.players.find((player) => player.id === socket.id)
-    const question = this.quizz.questions[this.round.currentQuestion]
+
+  selectAnswer(socket: Socket, value: unknown) {
+    const item = this.currentItem
+
+    if (!this.round.accepting || this.paused || !isQuestion(item)) {
+      return
+    }
+
+    const player = this.players.find((p) => p.id === socket.id)
 
     if (!player) {
       return
@@ -460,10 +426,16 @@ class Game {
       return
     }
 
+    const answer: AnswerValue | null = parseAnswer(item, value)
+
+    if (answer === null) {
+      return
+    }
+
     this.round.playersAnswers.push({
       playerId: player.id,
-      answerId,
-      points: timeToPoint(this.round.startTime, question.time),
+      value: answer,
+      timePoints: timeToPoint(this.round.startTime, item.time),
     })
 
     this.sendStatus(socket.id, STATUS.WAIT, {
@@ -482,45 +454,72 @@ class Game {
   }
 
   nextRound(socket: Socket) {
-    if (!this.started) {
+    if (!this.started || !this.isManager(socket)) {
       return
     }
 
-    if (socket.id !== this.manager.id) {
+    const phase = this.managerPhase
+
+    if (phase !== STATUS.SHOW_LEADERBOARD && phase !== STATUS.SHOW_SLIDE) {
       return
     }
 
-    if (!this.quizz.questions[this.round.currentQuestion + 1]) {
-      return
-    }
-
-    this.round.currentQuestion += 1
-    this.newRound()
+    this.advance()
   }
 
   abortRound(socket: Socket) {
-    if (!this.started) {
+    if (!this.started || !this.isManager(socket)) {
       return
     }
 
-    if (socket.id !== this.manager.id) {
-      return
-    }
-
+    this.setPaused(false)
     this.abortCooldown()
   }
 
-  showLeaderboard() {
-    const isLastRound =
-      this.round.currentQuestion + 1 === this.quizz.questions.length
+  togglePause(socket: Socket) {
+    if (!this.started || !this.isManager(socket) || !this.round.accepting) {
+      return
+    }
 
-    if (isLastRound) {
-      this.started = false
+    this.setPaused(!this.paused)
+  }
 
-      this.broadcastStatus(STATUS.FINISHED, {
-        subject: this.quizz.subject,
-        top: this.leaderboard.slice(0, 3),
-      })
+  // Drops the current question unscored and moves on.
+  skipQuestion(socket: Socket) {
+    if (!this.started || !this.isManager(socket)) {
+      return
+    }
+
+    const phase = this.managerPhase
+
+    if (
+      phase !== STATUS.SHOW_PREPARED &&
+      phase !== STATUS.SHOW_QUESTION &&
+      phase !== STATUS.SELECT_ANSWER
+    ) {
+      return
+    }
+
+    this.round.token += 1
+    this.round.accepting = false
+    this.round.playersAnswers = []
+    this.setPaused(false)
+    this.abortCooldown()
+
+    this.advance()
+  }
+
+  showLeaderboard(socket: Socket) {
+    if (!this.started || !this.isManager(socket)) {
+      return
+    }
+
+    if (this.managerPhase !== STATUS.SHOW_RESPONSES) {
+      return
+    }
+
+    if (!this.hasNextItem) {
+      this.finish()
 
       return
     }
@@ -530,11 +529,35 @@ class Game {
       : this.leaderboard
 
     this.sendStatus(this.manager.id, STATUS.SHOW_LEADERBOARD, {
-      oldLeaderboard: oldLeaderboard.slice(0, 5),
-      leaderboard: this.leaderboard.slice(0, 5),
+      oldLeaderboard: oldLeaderboard.slice(0, 5).map(toPublic),
+      leaderboard: this.leaderboard.slice(0, 5).map(toPublic),
     })
 
     this.tempOldLeaderboard = null
+  }
+
+  private advance() {
+    if (!this.hasNextItem) {
+      this.finish()
+
+      return
+    }
+
+    this.round.index += 1
+    this.newRound()
+  }
+
+  private finish() {
+    this.started = false
+    this.round.token += 1
+    this.managerStatus = null
+
+    const ranking = [...this.players].sort((a, b) => b.points - a.points)
+
+    this.broadcastStatus(STATUS.FINISHED, {
+      subject: this.quizz.subject,
+      top: ranking.slice(0, 3).map(toPublic),
+    })
   }
 }
 

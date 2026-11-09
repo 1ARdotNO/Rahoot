@@ -1,5 +1,13 @@
 import { Server as ServerIO, Socket as SocketIO } from "socket.io"
-import { GameUpdateQuestion, Player, Quizz, QuizzWithId } from "."
+import {
+  AnswerValue,
+  GameOptions,
+  GameUpdateQuestion,
+  Player,
+  Quizz,
+  QuizzSummary,
+  QuizzWithId,
+} from "."
 import { Status, StatusDataMap } from "./status"
 
 export type Server = ServerIO<ClientToServerEvents, ServerToClientEvents>
@@ -34,6 +42,7 @@ export interface ServerToClientEvents {
   "game:reset": (_message: string) => void
   "game:updateQuestion": (_data: { current: number; total: number }) => void
   "game:playerAnswer": (_count: number) => void
+  "game:paused": (_paused: boolean) => void
 
   // Player events
   "player:successReconnect": (_data: {
@@ -51,7 +60,7 @@ export interface ServerToClientEvents {
     players: Player[]
     currentQuestion: GameUpdateQuestion
   }) => void
-  "manager:quizzList": (_quizzList: QuizzWithId[]) => void
+  "manager:quizzList": (_quizzList: QuizzSummary[]) => void
   "manager:quizzData": (_quizz: QuizzWithId) => void
   "manager:quizzSaved": (_quizz: QuizzWithId) => void
   "manager:quizzDeleted": (_quizzId: string) => void
@@ -68,7 +77,7 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   // Manager actions
-  "game:create": (_quizzId: string) => void
+  "game:create": (_data: { quizzId: string; options: GameOptions }) => void
   "manager:auth": (_password: string) => void
   "manager:reconnect": (_message: { gameId: string }) => void
   "manager:kickPlayer": (_message: { gameId: string; playerId: string }) => void
@@ -76,6 +85,8 @@ export interface ClientToServerEvents {
   "manager:abortQuiz": (_message: MessageGameId) => void
   "manager:nextQuestion": (_message: MessageGameId) => void
   "manager:showLeaderboard": (_message: MessageGameId) => void
+  "manager:togglePause": (_message: MessageGameId) => void
+  "manager:skipQuestion": (_message: MessageGameId) => void
 
   // Quiz management
   "manager:getQuizz": (_quizzId: string) => void
@@ -91,7 +102,7 @@ export interface ClientToServerEvents {
   "player:login": (_message: MessageWithoutStatus<{ username: string }>) => void
   "player:reconnect": (_message: { gameId: string }) => void
   "player:selectedAnswer": (
-    _message: MessageWithoutStatus<{ answerKey: number }>
+    _message: MessageWithoutStatus<{ answer: AnswerValue }>
   ) => void
 
   // Common

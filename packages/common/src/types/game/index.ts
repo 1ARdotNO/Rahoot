@@ -1,32 +1,43 @@
+import type {
+  AnswerValue,
+  GameOptions,
+  QuestionType,
+  Quizz,
+  QuizzItem,
+  QuizzQuestion,
+  QuizzSlide,
+} from "../../validators/quizz"
+
+export type {
+  AnswerValue,
+  GameOptions,
+  QuestionType,
+  Quizz,
+  QuizzItem,
+  QuizzQuestion,
+  QuizzSlide,
+}
+
 export type Player = {
   id: string
   clientId: string
   connected: boolean
   username: string
   points: number
+  streak: number
 }
+
+export type PublicPlayer = Pick<Player, "id" | "username" | "points">
 
 export type Answer = {
   playerId: string
-  answerId: number
-  points: number
-}
-
-export type Quizz = {
-  subject: string
-  questions: {
-    question: string
-    image?: string
-    video?: string
-    audio?: string
-    answers: string[]
-    solution: number
-    cooldown: number
-    time: number
-  }[]
+  value: AnswerValue
+  timePoints: number
 }
 
 export type QuizzWithId = Quizz & { id: string }
+
+export type QuizzSummary = { id: string; subject: string }
 
 export type GameUpdateQuestion = {
   current: number

@@ -1,6 +1,6 @@
 "use client"
 
-import { Status } from "@rahoot/common/types/game/status"
+import { Status, STATUS } from "@rahoot/common/types/game/status"
 import background from "@rahoot/web/assets/background.webp"
 import Button from "@rahoot/web/components/Button"
 import Loader from "@rahoot/web/components/Loader"
@@ -15,13 +15,29 @@ import { PropsWithChildren, useEffect, useState } from "react"
 type Props = PropsWithChildren & {
   statusName: Status | undefined
   onNext?: () => void
+  onTogglePause?: () => void
+  onSkipQuestion?: () => void
   manager?: boolean
 }
 
-const GameWrapper = ({ children, statusName, onNext, manager }: Props) => {
+const SKIPPABLE_STATUSES: Status[] = [
+  STATUS.SHOW_PREPARED,
+  STATUS.SHOW_QUESTION,
+  STATUS.SELECT_ANSWER,
+]
+
+const GameWrapper = ({
+  children,
+  statusName,
+  onNext,
+  onTogglePause,
+  onSkipQuestion,
+  manager,
+}: Props) => {
   const { isConnected } = useSocket()
   const { player } = usePlayerStore()
-  const { questionStates, setQuestionStates } = useQuestionStore()
+  const { questionStates, setQuestionStates, paused, setPaused } =
+    useQuestionStore()
   const [isDisabled, setIsDisabled] = useState(false)
   const next = statusName ? MANAGER_SKIP_BTN[statusName] : null
 
@@ -32,9 +48,21 @@ const GameWrapper = ({ children, statusName, onNext, manager }: Props) => {
     })
   })
 
+  useEvent("game:paused", setPaused)
+
   useEffect(() => {
     setIsDisabled(false)
   }, [statusName])
+
+  useEffect(() => {
+    if (statusName !== STATUS.SELECT_ANSWER) {
+      setPaused(false)
+    }
+  }, [statusName, setPaused])
+
+  const canSkipQuestion =
+    manager && statusName && SKIPPABLE_STATUSES.includes(statusName)
+  const canPause = manager && statusName === STATUS.SELECT_ANSWER
 
   const handleNext = () => {
     setIsDisabled(true)
@@ -58,24 +86,62 @@ const GameWrapper = ({ children, statusName, onNext, manager }: Props) => {
         </div>
       ) : (
         <>
-          <div className="flex w-full justify-between p-4">
+          <div className="relative z-50 flex w-full justify-between gap-2 p-4">
             {questionStates && (
               <div className="shadow-inset flex items-center rounded-md bg-white p-2 px-4 text-lg font-bold text-black">
                 {`${questionStates.current} / ${questionStates.total}`}
               </div>
             )}
 
-            {manager && next && (
-              <Button
-                className={clsx("self-end bg-white px-4 text-black!", {
-                  "pointer-events-none": isDisabled,
-                })}
-                onClick={handleNext}
-              >
-                {next}
-              </Button>
-            )}
+            <div className="ml-auto flex flex-wrap justify-end gap-2">
+              {canPause && (
+                <Button
+                  className="bg-white px-4 text-black!"
+                  onClick={onTogglePause}
+                >
+                  {paused ? "Resume" : "Pause"}
+                </Button>
+              )}
+
+              {canSkipQuestion && (
+                <Button
+                  className={clsx("bg-white px-4 text-black!", {
+                    "pointer-events-none": isDisabled,
+                  })}
+                  onClick={() => {
+                    setIsDisabled(true)
+                    onSkipQuestion?.()
+                  }}
+                >
+                  Skip question
+                </Button>
+              )}
+
+              {manager && next && (
+                <Button
+                  className={clsx("bg-white px-4 text-black!", {
+                    "pointer-events-none": isDisabled,
+                  })}
+                  onClick={handleNext}
+                >
+                  {next}
+                </Button>
+              )}
+            </div>
           </div>
+
+          {paused && (
+            <div className="pointer-events-auto fixed inset-0 z-40 flex items-center justify-center bg-black/60">
+              <div className="flex flex-col items-center gap-2 text-white">
+                <span className="text-6xl font-bold drop-shadow-lg">
+                  Paused
+                </span>
+                {!manager && (
+                  <span className="text-lg">The host paused the game</span>
+                )}
+              </div>
+            </div>
+          )}
 
           {children}
 

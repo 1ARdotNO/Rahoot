@@ -152,6 +152,26 @@ Quiz Options:
   - `solution`: Index of correct answer (0-based)
   - `cooldown`: Time in seconds before showing the question
   - `time`: Time in seconds allowed to answer
+  - `type`: Optional, defaults to `single` (see below)
+
+Quizzes can also be created and edited from the manager page.
+
+Item types (`type` field):
+
+| Type        | Extra fields                                                                       | Scoring                                                        |
+| ----------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `single`    | `answers`, `solution` (index)                                                      | Correct answer                                                 |
+| `multiple`  | `answers`, `solutions` (array of indexes)                                          | Exactly the correct set                                        |
+| `truefalse` | `solution` (`true`/`false`)                                                        | Correct answer                                                 |
+| `typed`     | `acceptedAnswers` (array of strings)                                               | Case and whitespace insensitive match                          |
+| `slider`    | `min`, `max`, `step`, `solution`, `tolerance` (optional, default 0)                | Within tolerance is correct; partial points up to ¼ range away |
+| `slide`     | `title` (optional), `content` (Markdown), `image` (optional); no question fields    | Not scored; the host advances it                               |
+
+```json
+{ "type": "slide", "title": "Round 2", "content": "## Geography\n\nGet ready for **maps**!" }
+```
+
+Game options (chosen when starting a game): shuffle questions (within the sections between slides), shuffle answers, and a streak bonus (+100 per consecutive correct answer, up to +500). During a question the host can pause the timer or skip the question.
 
 ## 🎮 How to Play
 

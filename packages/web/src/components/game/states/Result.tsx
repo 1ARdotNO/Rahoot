@@ -13,7 +13,17 @@ type Props = {
 }
 
 const Result = ({
-  data: { correct, message, points, myPoints, rank, aheadOfMe },
+  data: {
+    correct,
+    message,
+    points,
+    myPoints,
+    rank,
+    aheadOfMe,
+    correctAnswer,
+    streak,
+    streakBonus,
+  },
 }: Props) => {
   const player = usePlayerStore()
 
@@ -40,10 +50,21 @@ const Result = ({
       <p className="mt-1 text-xl font-bold text-white drop-shadow-lg">
         {`You are top ${rank}${aheadOfMe ? `, behind ${aheadOfMe}` : ""}`}
       </p>
-      {correct && (
+      {points > 0 && (
         <span className="mt-2 rounded bg-black/40 px-4 py-2 text-2xl font-bold text-white drop-shadow-lg">
           +{points}
         </span>
+      )}
+      {streak >= 2 && (
+        <span className="mt-2 rounded bg-orange-500 px-4 py-1 text-lg font-bold text-white drop-shadow-lg">
+          🔥 {streak} answer streak
+          {streakBonus > 0 && ` (+${streakBonus} bonus)`}
+        </span>
+      )}
+      {!correct && correctAnswer && (
+        <p className="mt-3 max-w-md px-4 text-center text-lg font-bold text-white drop-shadow-lg">
+          Correct answer: {correctAnswer}
+        </p>
       )}
     </section>
   )

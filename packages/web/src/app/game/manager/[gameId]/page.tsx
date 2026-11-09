@@ -9,6 +9,7 @@ import Prepared from "@rahoot/web/components/game/states/Prepared"
 import Question from "@rahoot/web/components/game/states/Question"
 import Responses from "@rahoot/web/components/game/states/Responses"
 import Room from "@rahoot/web/components/game/states/Room"
+import Slide from "@rahoot/web/components/game/states/Slide"
 import Start from "@rahoot/web/components/game/states/Start"
 import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
 import { useManagerStore } from "@rahoot/web/stores/manager"
@@ -79,6 +80,23 @@ const ManagerGame = () => {
         socket?.emit("manager:nextQuestion", { gameId })
 
         break
+
+      case STATUS.SHOW_SLIDE:
+        socket?.emit("manager:nextQuestion", { gameId })
+
+        break
+    }
+  }
+
+  const handleTogglePause = () => {
+    if (gameId) {
+      socket?.emit("manager:togglePause", { gameId })
+    }
+  }
+
+  const handleSkipQuestion = () => {
+    if (gameId) {
+      socket?.emit("manager:skipQuestion", { gameId })
     }
   }
 
@@ -105,6 +123,11 @@ const ManagerGame = () => {
 
       break
 
+    case STATUS.SHOW_SLIDE:
+      component = <Slide data={status.data} />
+
+      break
+
     case STATUS.SELECT_ANSWER:
       component = <Answers data={status.data} />
 
@@ -127,7 +150,13 @@ const ManagerGame = () => {
   }
 
   return (
-    <GameWrapper statusName={status?.name} onNext={handleSkip} manager>
+    <GameWrapper
+      statusName={status?.name}
+      onNext={handleSkip}
+      onTogglePause={handleTogglePause}
+      onSkipQuestion={handleSkipQuestion}
+      manager
+    >
       {component}
     </GameWrapper>
   )

@@ -1,12 +1,31 @@
-import { QuizzWithId } from "@rahoot/common/types/game"
+import { GameOptions, QuizzSummary } from "@rahoot/common/types/game"
 import Button from "@rahoot/web/components/Button"
 import clsx from "clsx"
 import React, { useState } from "react"
 import toast from "react-hot-toast"
 
+const OPTION_LABELS: { key: keyof GameOptions; label: string; hint: string }[] =
+  [
+    {
+      key: "shuffleQuestions",
+      label: "Shuffle questions",
+      hint: "Info slides stay in place; questions shuffle within each section",
+    },
+    {
+      key: "shuffleAnswers",
+      label: "Shuffle answers",
+      hint: "Randomise answer order for choice questions",
+    },
+    {
+      key: "streakBonus",
+      label: "Streak bonus",
+      hint: "+100 per consecutive correct answer, up to +500",
+    },
+  ]
+
 type Props = {
-  quizzList: QuizzWithId[]
-  onSelect: (_id: string) => void
+  quizzList: QuizzSummary[]
+  onSelect: (_id: string, _options: GameOptions) => void
   onEdit: (_id: string) => void
   onDelete: (_id: string) => void
   onCreate: () => void
@@ -20,6 +39,11 @@ const SelectQuizz = ({
   onCreate,
 }: Props) => {
   const [selected, setSelected] = useState<string | null>(null)
+  const [options, setOptions] = useState<GameOptions>({
+    shuffleQuestions: false,
+    shuffleAnswers: false,
+    streakBonus: false,
+  })
 
   const handleSelect = (id: string) => () => {
     if (selected === id) {
@@ -36,7 +60,7 @@ const SelectQuizz = ({
       return
     }
 
-    onSelect(selected)
+    onSelect(selected, options)
   }
 
   const handleDelete = (id: string) => (e: React.MouseEvent) => {
@@ -103,6 +127,30 @@ const SelectQuizz = ({
           ))}
         </div>
       </div>
+      <fieldset className="rounded-md border border-gray-200 p-3">
+        <legend className="px-1 text-sm font-semibold text-gray-600">
+          Game options
+        </legend>
+        {OPTION_LABELS.map(({ key, label, hint }) => (
+          <label
+            key={key}
+            className="flex cursor-pointer items-start gap-2 py-1"
+          >
+            <input
+              type="checkbox"
+              checked={options[key]}
+              onChange={(e) =>
+                setOptions((prev) => ({ ...prev, [key]: e.target.checked }))
+              }
+              className="accent-primary mt-1 h-4 w-4"
+            />
+            <span>
+              <span className="font-semibold">{label}</span>
+              <span className="block text-xs text-gray-500">{hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
       <div className="flex gap-3">
         <button
           onClick={onCreate}

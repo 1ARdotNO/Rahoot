@@ -8,6 +8,8 @@ import {
   SFX_ANSWERS_MUSIC,
   SFX_RESULTS_SOUND,
 } from "@rahoot/web/utils/constants"
+import SliderResponses from "@rahoot/web/components/game/responses/SliderResponses"
+import TypedResponses from "@rahoot/web/components/game/responses/TypedResponses"
 import { calculatePercentages } from "@rahoot/web/utils/score"
 import clsx from "clsx"
 import { useEffect, useState } from "react"
@@ -18,7 +20,7 @@ type Props = {
 }
 
 const Responses = ({
-  data: { question, answers, responses, correct },
+  data: { type, question, answers, responses, correct, typed, slider },
 }: Props) => {
   const [percentages, setPercentages] = useState<Record<string, string>>({})
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
@@ -61,26 +63,31 @@ const Responses = ({
           {question}
         </h2>
 
-        <div
-          className={`mt-8 grid h-40 w-full max-w-3xl gap-4 px-2`}
-          style={{ gridTemplateColumns: `repeat(${answers.length}, 1fr)` }}
-        >
-          {answers.map((_, key) => (
-            <div
-              key={key}
-              className={clsx(
-                "flex flex-col justify-end self-end overflow-hidden rounded-md",
-                ANSWERS_COLORS[key],
-              )}
-              style={{ height: percentages[key] }}
-            >
-              <span className="w-full bg-black/10 text-center text-lg font-bold text-white drop-shadow-md">
-                {responses[key] || 0}
-              </span>
-            </div>
-          ))}
-        </div>
+        {answers.length > 0 && (
+          <div
+            className={`mt-8 grid h-40 w-full max-w-3xl gap-4 px-2`}
+            style={{ gridTemplateColumns: `repeat(${answers.length}, 1fr)` }}
+          >
+            {answers.map((_, key) => (
+              <div
+                key={key}
+                className={clsx(
+                  "flex flex-col justify-end self-end overflow-hidden rounded-md",
+                  ANSWERS_COLORS[key],
+                )}
+                style={{ height: percentages[key] }}
+              >
+                <span className="w-full bg-black/10 text-center text-lg font-bold text-white drop-shadow-md">
+                  {responses[key] || 0}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {type === "typed" && typed && <TypedResponses typed={typed} />}
+      {type === "slider" && slider && <SliderResponses slider={slider} />}
 
       <div>
         <div className="mx-auto mb-4 grid w-full max-w-7xl grid-cols-2 gap-1 rounded-full px-2 text-lg font-bold text-white md:text-xl">
@@ -88,7 +95,7 @@ const Responses = ({
             <AnswerButton
               key={key}
               className={clsx(ANSWERS_COLORS[key], {
-                "opacity-65": responses && correct !== key,
+                "opacity-65": responses && !correct.includes(key),
               })}
               icon={ANSWERS_ICONS[key]}
             >

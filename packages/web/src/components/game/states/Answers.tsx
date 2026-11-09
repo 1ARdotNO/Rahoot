@@ -1,16 +1,16 @@
 "use client"
 
 import { CommonStatusDataMap } from "@rahoot/common/types/game/status"
-import AnswerButton from "@rahoot/web/components/AnswerButton"
+import { AnswerValue } from "@rahoot/common/types/game"
+import ChoiceAnswers from "@rahoot/web/components/game/answers/ChoiceAnswers"
+import SliderAnswer from "@rahoot/web/components/game/answers/SliderAnswer"
+import TypedAnswer from "@rahoot/web/components/game/answers/TypedAnswer"
 import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
 import { usePlayerStore } from "@rahoot/web/stores/player"
 import {
-  ANSWERS_COLORS,
-  ANSWERS_ICONS,
   SFX_ANSWERS_MUSIC,
   SFX_ANSWERS_SOUND,
 } from "@rahoot/web/utils/constants"
-import clsx from "clsx"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import useSound from "use-sound"
@@ -20,7 +20,17 @@ type Props = {
 }
 
 const Answers = ({
-  data: { question, answers, image, audio, video, time, totalPlayer },
+  data: {
+    type,
+    question,
+    answers,
+    slider,
+    image,
+    audio,
+    video,
+    time,
+    totalPlayer,
+  },
 }: Props) => {
   const { gameId }: { gameId?: string } = useParams()
   const { socket } = useSocket()
@@ -39,19 +49,16 @@ const Answers = ({
     loop: true,
   })
 
-  const handleAnswer = (answerKey: number) => () => {
-    if (!player) {
-      return
-    }
-
+  const handleAnswer = (answer: AnswerValue) => {
     socket?.emit("player:selectedAnswer", {
       gameId,
-      data: {
-        answerKey,
-      },
+      data: { answer },
     })
     sfxPop()
   }
+
+  // Only players submit; the host screen renders the same inputs read-only.
+  const onSubmit = player ? handleAnswer : undefined
 
   useEffect(() => {
     if (video || audio) {
@@ -123,18 +130,19 @@ const Answers = ({
           </div>
         </div>
 
-        <div className="mx-auto mb-4 grid w-full max-w-7xl grid-cols-2 gap-1 rounded-full px-2 text-lg font-bold text-white md:text-xl">
-          {answers.map((answer, key) => (
-            <AnswerButton
-              key={key}
-              className={clsx(ANSWERS_COLORS[key])}
-              icon={ANSWERS_ICONS[key]}
-              onClick={handleAnswer(key)}
-            >
-              {answer}
-            </AnswerButton>
-          ))}
-        </div>
+        {(type === "single" || type === "multiple" || type === "truefalse") && (
+          <ChoiceAnswers
+            answers={answers}
+            multiple={type === "multiple"}
+            onSubmit={onSubmit}
+          />
+        )}
+
+        {type === "typed" && <TypedAnswer onSubmit={onSubmit} />}
+
+        {type === "slider" && slider && (
+          <SliderAnswer slider={slider} onSubmit={onSubmit} />
+        )}
       </div>
     </div>
   )

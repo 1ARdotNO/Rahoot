@@ -1,6 +1,7 @@
 import { Server } from "@rahoot/common/types/game/socket"
 import { inviteCodeValidator } from "@rahoot/common/validators/auth"
 import {
+  gameOptionsValidator,
   quizzIdValidator,
   quizzValidator,
 } from "@rahoot/common/validators/quizz"
@@ -110,7 +111,7 @@ io.on("connection", (socket) => {
       }
 
       authenticatedManagers.add(socket.id)
-      socket.emit("manager:quizzList", Config.quizz())
+      socket.emit("manager:quizzList", Config.quizzList())
     } catch (error) {
       console.error("Failed to read game config:", error)
       socket.emit("manager:errorMessage", "Failed to read game config")
@@ -127,17 +128,38 @@ io.on("connection", (socket) => {
     callback()
   }
 
+  const loadQuizz = (quizzId: string) => {
+    const raw = Config.getQuizz(quizzId)
+
+    if (!raw) {
+      return { ok: false, error: "Quizz not found" } as const
+    }
+
+    const parsed = quizzValidator.safeParse(raw)
+
+    if (!parsed.success) {
+      const [issue] = parsed.error.issues
+
+      return {
+        ok: false,
+        error: `Quizz file is invalid at ${issue.path.join(".")}: ${issue.message}`,
+      } as const
+    }
+
+    return { ok: true, quizz: { ...parsed.data, id: raw.id } } as const
+  }
+
   socket.on("manager:getQuizz", (quizzId) =>
     requireManager(() => {
-      const quizz = Config.getQuizz(quizzId)
+      const result = loadQuizz(quizzId)
 
-      if (!quizz) {
-        socket.emit("manager:errorMessage", "Quizz not found")
+      if (!result.ok) {
+        socket.emit("manager:errorMessage", result.error)
 
         return
       }
 
-      socket.emit("manager:quizzData", quizz)
+      socket.emit("manager:quizzData", result.quizz)
     }),
   )
 
@@ -148,7 +170,7 @@ io.on("connection", (socket) => {
       if (!parsed.success) {
         socket.emit(
           "manager:errorMessage",
-          `Invalid quizz: ${parsed.error.issues[0].message}`,
+          `Invalid quizz at ${parsed.error.issues[0].path.join(".")}: ${parsed.error.issues[0].message}`,
         )
 
         return
@@ -176,7 +198,7 @@ io.on("connection", (socket) => {
 
         const saved = Config.saveQuizz(payload.id, quizz)
         socket.emit("manager:quizzSaved", saved)
-        socket.emit("manager:quizzList", Config.quizz())
+        socket.emit("manager:quizzList", Config.quizzList())
       } catch (error) {
         console.error("Failed to save quizz:", error)
         socket.emit(
@@ -196,21 +218,28 @@ io.on("connection", (socket) => {
       }
 
       socket.emit("manager:quizzDeleted", quizzId)
-      socket.emit("manager:quizzList", Config.quizz())
+      socket.emit("manager:quizzList", Config.quizzList())
     }),
   )
 
-  socket.on("game:create", (quizzId) =>
+  socket.on("game:create", (payload) =>
     requireManager(() => {
-      const quizz = Config.getQuizz(quizzId)
+      const options = gameOptionsValidator.safeParse(payload?.options ?? {})
+      const result = loadQuizz(payload?.quizzId)
 
-      if (!quizz) {
-        socket.emit("game:errorMessage", "Quizz not found")
+      if (!result.ok) {
+        socket.emit("game:errorMessage", result.error)
 
         return
       }
 
-      const game = new Game(io, socket, quizz)
+      if (!options.success) {
+        socket.emit("game:errorMessage", "Invalid game options")
+
+        return
+      }
+
+      const game = new Game(io, socket, result.quizz, options.data)
       registry.addGame(game)
     }),
   )
@@ -249,7 +278,7 @@ io.on("connection", (socket) => {
 
   socket.on("player:selectedAnswer", ({ gameId, data }) =>
     withGame(gameId, socket, (game) =>
-      game.selectAnswer(socket, data.answerKey),
+      game.selectAnswer(socket, data?.answer),
     ),
   )
 
@@ -262,7 +291,15 @@ io.on("connection", (socket) => {
   )
 
   socket.on("manager:showLeaderboard", ({ gameId }) =>
-    withGame(gameId, socket, (game) => game.showLeaderboard()),
+    withGame(gameId, socket, (game) => game.showLeaderboard(socket)),
+  )
+
+  socket.on("manager:togglePause", ({ gameId }) =>
+    withGame(gameId, socket, (game) => game.togglePause(socket)),
+  )
+
+  socket.on("manager:skipQuestion", ({ gameId }) =>
+    withGame(gameId, socket, (game) => game.skipQuestion(socket)),
   )
 
   socket.on("disconnect", () => {

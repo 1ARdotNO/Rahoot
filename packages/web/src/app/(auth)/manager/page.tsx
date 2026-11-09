@@ -1,6 +1,11 @@
 "use client"
 
-import { Quizz, QuizzWithId } from "@rahoot/common/types/game"
+import {
+  GameOptions,
+  Quizz,
+  QuizzSummary,
+  QuizzWithId,
+} from "@rahoot/common/types/game"
 import { STATUS } from "@rahoot/common/types/game/status"
 import ManagerPassword from "@rahoot/web/components/game/create/ManagerPassword"
 import QuizzEditor from "@rahoot/web/components/game/create/QuizzEditor"
@@ -22,7 +27,7 @@ const Manager = () => {
   const { socket } = useSocket()
 
   const [isAuth, setIsAuth] = useState(false)
-  const [quizzList, setQuizzList] = useState<QuizzWithId[]>([])
+  const [quizzList, setQuizzList] = useState<QuizzSummary[]>([])
   const [editorMode, setEditorMode] = useState<EditorMode>({ type: "list" })
 
   useEvent("manager:quizzList", (quizzList) => {
@@ -38,6 +43,16 @@ const Manager = () => {
     })
     router.push(`/game/manager/${gameId}`)
   })
+
+  // ManagerPassword shows errors until login; after that this page owns them.
+  const showError = (message: string) => {
+    if (isAuth) {
+      toast.error(message)
+    }
+  }
+
+  useEvent("manager:errorMessage", showError)
+  useEvent("game:errorMessage", showError)
 
   useEvent("manager:quizzSaved", () => {
     toast.success("Quiz saved successfully")
@@ -56,8 +71,8 @@ const Manager = () => {
     socket?.emit("manager:auth", password)
   }
 
-  const handleStartGame = (quizzId: string) => {
-    socket?.emit("game:create", quizzId)
+  const handleStartGame = (quizzId: string, options: GameOptions) => {
+    socket?.emit("game:create", { quizzId, options })
   }
 
   const handleSave = (data: {
