@@ -61,6 +61,13 @@ export interface ServerToClientEvents {
     currentQuestion: GameUpdateQuestion
   }) => void
   "manager:quizzList": (_quizzList: QuizzSummary[]) => void
+  "manager:authMethods": (_methods: {
+    password: boolean
+    oidc: { name: string } | null
+  }) => void
+  // `token` is only sent when a new session is created, not on resume.
+  "manager:session": (_session: { name: string; token?: string }) => void
+  "manager:sessionExpired": () => void
   "manager:quizzData": (_quizz: QuizzWithId) => void
   "manager:quizzSaved": (_quizz: QuizzWithId) => void
   "manager:quizzDeleted": (_quizzId: string) => void
@@ -79,6 +86,10 @@ export interface ClientToServerEvents {
   // Manager actions
   "game:create": (_data: { quizzId: string; options: GameOptions }) => void
   "manager:auth": (_password: string) => void
+  "manager:authMethods": () => void
+  "manager:oidcHandoff": (_code: string) => void
+  "manager:resume": (_token: string) => void
+  "manager:logout": (_token?: string) => void
   "manager:reconnect": (_message: { gameId: string }) => void
   "manager:kickPlayer": (_message: { gameId: string; playerId: string }) => void
   "manager:startGame": (_message: MessageGameId) => void

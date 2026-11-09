@@ -21,6 +21,7 @@ type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 interface SocketContextValue {
   socket: TypedSocket | null
   webUrl: string | null
+  socketUrl: string | null
   isConnected: boolean
   clientId: string
   connect: () => void
@@ -31,6 +32,7 @@ interface SocketContextValue {
 const SocketContext = createContext<SocketContextValue>({
   socket: null,
   webUrl: null,
+  socketUrl: null,
   isConnected: false,
   clientId: "",
   connect: () => {},
@@ -61,6 +63,7 @@ const getClientId = (): string => {
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const [socket, setSocket] = useState<TypedSocket | null>(null)
   const [webUrl, setWebUrl] = useState<string | null>(null)
+  const [socketUrl, setSocketUrl] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [clientId] = useState<string>(() => getClientId())
 
@@ -83,6 +86,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         })
 
         setWebUrl(webUrl)
+        setSocketUrl(socketUrl)
         setSocket(s)
 
         s.on("connect", () => {
@@ -133,6 +137,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       value={{
         socket,
         webUrl,
+        socketUrl,
         isConnected,
         clientId,
         connect,

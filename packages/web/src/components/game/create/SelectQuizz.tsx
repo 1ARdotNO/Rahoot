@@ -24,6 +24,8 @@ const OPTION_LABELS: { key: keyof GameOptions; label: string; hint: string }[] =
   ]
 
 type Props = {
+  userName: string | null
+  onLogout: () => void
   quizzList: QuizzSummary[]
   onSelect: (_id: string, _options: GameOptions) => void
   onEdit: (_id: string) => void
@@ -32,6 +34,8 @@ type Props = {
 }
 
 const SelectQuizz = ({
+  userName,
+  onLogout,
   quizzList,
   onSelect,
   onEdit,
@@ -87,8 +91,27 @@ const SelectQuizz = ({
 
   return (
     <div className="z-10 flex w-full max-w-md flex-col gap-4 rounded-md bg-white p-4 shadow-sm">
+      {userName && (
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span className="truncate">
+            Signed in as <span className="font-semibold">{userName}</span>
+          </span>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="shrink-0 font-semibold text-gray-600 hover:text-gray-800"
+          >
+            Log out
+          </button>
+        </div>
+      )}
       <div className="flex flex-col items-center justify-center">
         <h1 className="mb-2 text-2xl font-bold">Select a quizz</h1>
+        {quizzList.length === 0 && (
+          <p className="py-4 text-center text-gray-500">
+            No quizzes yet. Create your first one below!
+          </p>
+        )}
         <div className="w-full space-y-2">
           {quizzList.map((quizz) => (
             <button

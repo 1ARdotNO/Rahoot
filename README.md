@@ -173,6 +173,25 @@ Item types (`type` field):
 
 Game options (chosen when starting a game): shuffle questions (within the sections between slides), shuffle answers, and a streak bonus (+100 per consecutive correct answer, up to +500). During a question the host can pause the timer or skip the question.
 
+### 3. Manager login with OIDC / Pocket ID (optional)
+
+By default the manager page uses the shared `managerPassword`. You can also log in with an OpenID Connect provider such as [Pocket ID](https://pocket-id.org). Each OIDC user gets a private quiz folder at `config/quizz/users/<user id>/`. The shared password login keeps using `config/quizz/`.
+
+1. In Pocket ID, create an OIDC client with the callback URL `<SOCKET_URL>/auth/callback` (e.g. `https://rahoot-socket.example.com/auth/callback`).
+2. Set the environment variables:
+
+| Variable              | Description                                                                  |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `MANAGER_AUTH`        | `password` (default), `oidc` (SSO only), or `both`                           |
+| `OIDC_ISSUER`         | Your provider URL, e.g. `https://id.example.com`                             |
+| `OIDC_CLIENT_ID`      | Client ID from the provider                                                  |
+| `OIDC_CLIENT_SECRET`  | Client secret; omit for a public client (PKCE is always used)                |
+| `OIDC_ALLOWED_GROUPS` | Optional comma-separated groups allowed to log in (requests `groups` scope)  |
+| `OIDC_REDIRECT_URI`   | Optional override; defaults to `<SOCKET_URL>/auth/callback`                  |
+| `OIDC_PROVIDER_NAME`  | Login button label, default `Pocket ID`                                      |
+
+`WEB_ORIGIN` must be the real web URL (not `*`) when OIDC is enabled. If `OIDC_ALLOWED_GROUPS` is not set, every account on your provider can manage quizzes, so either set it or restrict the client to a group in Pocket ID. Login sessions are kept in memory and last 12 hours, so restarting the server logs everyone out.
+
 ## 🎮 How to Play
 
 1. Access the manager interface at http://localhost:3000/manager

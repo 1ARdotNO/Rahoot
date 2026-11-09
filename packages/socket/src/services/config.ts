@@ -36,6 +36,21 @@ const getPath = (path: string = "") =>
     ? resolve(inContainerPath, path)
     : resolve(process.cwd(), "../../config", path)
 
+const SAFE_OWNER = /^[A-Za-z0-9_-]{1,128}$/u
+
+// OIDC users get config/quizz/users/<owner>; the shared password login keeps config/quizz.
+const quizzDir = (owner: string | null) => {
+  if (owner === null) {
+    return "quizz"
+  }
+
+  if (!SAFE_OWNER.test(owner)) {
+    throw new Error("Invalid quizz owner")
+  }
+
+  return `quizz/users/${owner}`
+}
+
 class Config {
   static init() {
     const isConfigFolderExists = fs.existsSync(getPath())
@@ -125,20 +140,22 @@ class Config {
     return {}
   }
 
-  static quizzList(): QuizzSummary[] {
-    if (!fs.existsSync(getPath("quizz"))) {
+  static quizzList(owner: string | null): QuizzSummary[] {
+    const dir = quizzDir(owner)
+
+    if (!fs.existsSync(getPath(dir))) {
       return []
     }
 
     return fs
-      .readdirSync(getPath("quizz"))
+      .readdirSync(getPath(dir))
       .filter((file) => file.endsWith(".json"))
       .flatMap((file) => {
         const id = file.replace(/\.json$/u, "")
 
         try {
           const data = JSON.parse(
-            fs.readFileSync(getPath(`quizz/${file}`), "utf-8"),
+            fs.readFileSync(getPath(`${dir}/${file}`), "utf-8"),
           )
 
           return [{ id, subject: String(data.subject ?? id) }]
@@ -151,12 +168,15 @@ class Config {
   }
 
   // Returns raw file contents; callers validate with quizzValidator.
-  static getQuizz(id: string): ({ id: string } & Record<string, unknown>) | null {
+  static getQuizz(
+    owner: string | null,
+    id: string,
+  ): ({ id: string } & Record<string, unknown>) | null {
     if (!quizzIdValidator.safeParse(id).success) {
       return null
     }
 
-    const filePath = getPath(`quizz/${id}.json`)
+    const filePath = getPath(`${quizzDir(owner)}/${id}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -173,24 +193,30 @@ class Config {
     }
   }
 
-  static saveQuizz(id: string | undefined, quizz: Quizz): QuizzWithId {
+  static saveQuizz(
+    owner: string | null,
+    id: string | undefined,
+    quizz: Quizz,
+  ): QuizzWithId {
     const quizzId = id ?? randomBytes(8).toString("hex")
     quizzIdValidator.parse(quizzId)
 
+    const dir = quizzDir(owner)
+    fs.mkdirSync(getPath(dir), { recursive: true })
     fs.writeFileSync(
-      getPath(`quizz/${quizzId}.json`),
+      getPath(`${dir}/${quizzId}.json`),
       JSON.stringify(quizz, null, 2),
     )
 
     return { id: quizzId, ...quizz }
   }
 
-  static deleteQuizz(id: string): boolean {
+  static deleteQuizz(owner: string | null, id: string): boolean {
     if (!quizzIdValidator.safeParse(id).success) {
       return false
     }
 
-    const filePath = getPath(`quizz/${id}.json`)
+    const filePath = getPath(`${quizzDir(owner)}/${id}.json`)
 
     if (!fs.existsSync(filePath)) {
       return false

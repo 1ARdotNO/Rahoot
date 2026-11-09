@@ -11,6 +11,7 @@ import ManagerPassword from "@rahoot/web/components/game/create/ManagerPassword"
 import QuizzEditor from "@rahoot/web/components/game/create/QuizzEditor"
 import SelectQuizz from "@rahoot/web/components/game/create/SelectQuizz"
 import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
+import useManagerSession from "@rahoot/web/hooks/useManagerSession"
 import { useManagerStore } from "@rahoot/web/stores/manager"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -29,6 +30,11 @@ const Manager = () => {
   const [isAuth, setIsAuth] = useState(false)
   const [quizzList, setQuizzList] = useState<QuizzSummary[]>([])
   const [editorMode, setEditorMode] = useState<EditorMode>({ type: "list" })
+  const session = useManagerSession(() => {
+    setIsAuth(false)
+    setQuizzList([])
+    setEditorMode({ type: "list" })
+  })
 
   useEvent("manager:quizzList", (quizzList) => {
     setIsAuth(true)
@@ -92,7 +98,7 @@ const Manager = () => {
   }
 
   if (!isAuth) {
-    return <ManagerPassword onSubmit={handleAuth} />
+    return <ManagerPassword methods={session.methods} onSubmit={handleAuth} />
   }
 
   if (editorMode.type === "create") {
@@ -116,6 +122,8 @@ const Manager = () => {
 
   return (
     <SelectQuizz
+      userName={session.name}
+      onLogout={session.logout}
       quizzList={quizzList}
       onSelect={handleStartGame}
       onEdit={handleEdit}

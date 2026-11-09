@@ -1,15 +1,18 @@
 import Button from "@rahoot/web/components/Button"
 import Form from "@rahoot/web/components/Form"
 import Input from "@rahoot/web/components/Input"
-import { useEvent } from "@rahoot/web/contexts/socketProvider"
+import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
+import { AuthMethods } from "@rahoot/web/hooks/useManagerSession"
 import { KeyboardEvent, useState } from "react"
 import toast from "react-hot-toast"
 
 type Props = {
+  methods: AuthMethods | null
   onSubmit: (_password: string) => void
 }
 
-const ManagerPassword = ({ onSubmit }: Props) => {
+const ManagerPassword = ({ methods, onSubmit }: Props) => {
+  const { socketUrl } = useSocket()
   const [password, setPassword] = useState("")
 
   const handleSubmit = () => {
@@ -26,15 +29,40 @@ const ManagerPassword = ({ onSubmit }: Props) => {
     toast.error(message)
   })
 
+  if (!methods) {
+    return null
+  }
+
   return (
     <Form>
-      <Input
-        type="password"
-        onChange={(e) => setPassword(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Manager password"
-      />
-      <Button onClick={handleSubmit}>Submit</Button>
+      {methods.oidc && socketUrl && (
+        <a
+          href={`${socketUrl.replace(/\/$/u, "")}/auth/login`}
+          className="btn-shadow bg-primary rounded-md p-2 text-center text-lg font-semibold text-white"
+        >
+          Log in with {methods.oidc.name}
+        </a>
+      )}
+
+      {methods.oidc && methods.password && (
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="h-px flex-1 bg-gray-200" />
+          or
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+      )}
+
+      {methods.password && (
+        <>
+          <Input
+            type="password"
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Manager password"
+          />
+          <Button onClick={handleSubmit}>Submit</Button>
+        </>
+      )}
     </Form>
   )
 }

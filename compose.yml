@@ -11,3 +11,9 @@ services:
     environment:
       - WEB_ORIGIN=http://localhost:3000
       - SOCKET_URL=http://localhost:3001
+      # Optional single sign-on for the manager page (see README)
+      # - MANAGER_AUTH=both
+      # - OIDC_ISSUER=https://id.example.com
+      # - OIDC_CLIENT_ID=your-client-id
+      # - OIDC_CLIENT_SECRET=your-client-secret
+      # - OIDC_ALLOWED_GROUPS=quizmasters
