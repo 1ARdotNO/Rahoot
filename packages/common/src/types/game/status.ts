@@ -76,6 +76,7 @@ type ManagerExtraStatus = {
   SHOW_LEADERBOARD: {
     oldLeaderboard: PublicPlayer[]
     leaderboard: PublicPlayer[]
+    commentary: string[]
   }
 }
 

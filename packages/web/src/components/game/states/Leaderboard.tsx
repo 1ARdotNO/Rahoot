@@ -23,7 +23,12 @@ const AnimatedPoints = ({ from, to }: { from: number; to: number }) => {
   return <span className="drop-shadow-md">{displayValue}</span>
 }
 
-const Leaderboard = ({ data: { oldLeaderboard, leaderboard } }: Props) => {
+// Lands just after the rows finish re-ordering, so the joke matches what people see.
+const COMMENTARY_DELAY_S = 2.4
+
+const Leaderboard = ({
+  data: { oldLeaderboard, leaderboard, commentary = [] },
+}: Props) => {
   const [displayedLeaderboard, setDisplayedLeaderboard] =
     useState(oldLeaderboard)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -84,6 +89,25 @@ const Leaderboard = ({ data: { oldLeaderboard, leaderboard } }: Props) => {
             </motion.div>
           ))}
         </AnimatePresence>
+      </div>
+
+      <div className="mt-6 flex w-full flex-col items-center gap-3">
+        {commentary.map((line, index) => (
+          <motion.p
+            key={line}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{
+              delay: COMMENTARY_DELAY_S + index * 0.8,
+              type: "spring",
+              stiffness: 300,
+              damping: 18,
+            }}
+            className="max-w-3xl rounded-2xl bg-white px-5 py-3 text-center text-xl font-bold text-gray-800 shadow-lg md:text-2xl"
+          >
+            {line}
+          </motion.p>
+        ))}
       </div>
     </section>
   )

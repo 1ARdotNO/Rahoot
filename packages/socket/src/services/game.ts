@@ -10,6 +10,7 @@ import { Server, Socket } from "@rahoot/common/types/game/socket"
 import { Status, STATUS, StatusDataMap } from "@rahoot/common/types/game/status"
 import { usernameValidator } from "@rahoot/common/validators/auth"
 import { getChoices } from "@rahoot/common/validators/quizz"
+import Commentator from "@rahoot/socket/utils/commentary"
 import Countdown from "@rahoot/socket/utils/countdown"
 import { createInviteCode, timeToPoint } from "@rahoot/socket/utils/game"
 import {
@@ -69,6 +70,8 @@ class Game {
     startTime: 0,
     pausedAt: 0,
   }
+
+  commentator = new Commentator()
 
   countdown = new Countdown({
     onTick: (remaining) => this.io.to(this.gameId).emit("game:cooldown", remaining),
@@ -531,6 +534,7 @@ class Game {
     this.sendStatus(this.manager.id, STATUS.SHOW_LEADERBOARD, {
       oldLeaderboard: oldLeaderboard.slice(0, 5).map(toPublic),
       leaderboard: this.leaderboard.slice(0, 5).map(toPublic),
+      commentary: this.commentator.comment(oldLeaderboard, this.leaderboard),
     })
 
     this.tempOldLeaderboard = null
