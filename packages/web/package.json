@@ -12,7 +12,7 @@
     "@rahoot/socket": "workspace:*",
     "@t3-oss/env-nextjs": "^0.13.11",
     "clsx": "^2.1.1",
-    "ky": "^1.14.3",
+    "ky": "^2.2.0",
     "motion": "^12.43.0",
     "next": "16.4.6",
     "react": "19.3.1",
