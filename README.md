@@ -347,6 +347,10 @@ pnpm lint && pnpm typecheck && pnpm build && pnpm test
 
 For bug reports or feature requests, please [create an issue](https://github.com/Ralex91/Rahoot/issues).
 
+## 🔒 Security
+
+Please report vulnerabilities privately through [GitHub's vulnerability reporting](https://github.com/1ARdotNO/Rahoot/security/advisories/new), not in public issues. See [SECURITY.md](SECURITY.md) for scope, response times, and a hardening checklist for self-hosting.
+
 ## ⭐ Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Ralex91/Rahoot&type=date&legend=bottom-right)](https://www.star-history.com/#Ralex91/Rahoot&type=date&legend=bottom-right)
