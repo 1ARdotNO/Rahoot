@@ -21,10 +21,10 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.9",
     "esbuild": "^0.27.7",
-    "eslint": "^9.39.5",
+    "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "socket.io-client": "^4.8.4",
     "tsx": "^4.23.15",
