@@ -1,3 +1,4 @@
+import { ActionResult } from "@rahoot/common/types/game"
 import { Server } from "@rahoot/common/types/game/socket"
 import { inviteCodeValidator } from "@rahoot/common/validators/auth"
 import {
@@ -12,6 +13,7 @@ import Game from "@rahoot/socket/services/game"
 import Registry from "@rahoot/socket/services/registry"
 import Results from "@rahoot/socket/services/results"
 import { withGame } from "@rahoot/socket/utils/game"
+import { addBot, kickPlayer } from "@rahoot/socket/utils/players"
 import { handleHttp } from "@rahoot/socket/http"
 import {
   authMethods,
@@ -28,6 +30,14 @@ import { Server as ServerIO } from "socket.io"
 Config.init()
 
 const registry = Registry.getInstance()
+
+type HostActionEvent =
+  | "manager:startGame"
+  | "manager:abortQuiz"
+  | "manager:nextQuestion"
+  | "manager:showLeaderboard"
+  | "manager:togglePause"
+  | "manager:skipQuestion"
 const port = 3001
 
 // Logged-in manager sockets; quiz management and game creation require an entry.
@@ -370,6 +380,42 @@ io.on("connection", (socket) => {
     }),
   )
 
+  // Every host action gets a reply, so the host UI never waits on a click the server ignored.
+  const hostAction = (
+    event: HostActionEvent,
+    run: (_game: Game) => ActionResult,
+  ) =>
+    socket.on(event, (message, ack) => {
+      const reply = typeof ack === "function" ? ack : () => undefined
+      const game = message?.gameId
+        ? registry.getGameById(message.gameId)
+        : undefined
+
+      if (!game) {
+        reply({ ok: false, error: "Game not found" })
+
+        return
+      }
+
+      if (!game.isManager(socket)) {
+        reply({ ok: false, error: "This screen isn't the host of the game" })
+
+        return
+      }
+
+      const result: ActionResult =
+        typeof message.step === "number" && message.step !== game.step
+          ? { ok: false, error: "The screen changed", stale: true }
+          : run(game)
+      const current = game.managerStatus ?? game.lastBroadcastStatus
+
+      reply(
+        !result.ok && result.stale && current
+          ? { ...result, current: { ...current, step: game.step } }
+          : result,
+      )
+    })
+
   socket.on("player:join", (inviteCode) => {
     const result = inviteCodeValidator.safeParse(inviteCode)
 
@@ -395,16 +441,14 @@ io.on("connection", (socket) => {
   )
 
   socket.on("manager:kickPlayer", ({ gameId, playerId }) =>
-    withGame(gameId, socket, (game) => game.kickPlayer(socket, playerId)),
+    withGame(gameId, socket, (game) => kickPlayer(game, socket, playerId)),
   )
 
   socket.on("manager:addBot", ({ gameId, difficulty }) =>
-    withGame(gameId, socket, (game) => game.addBot(socket, difficulty)),
+    withGame(gameId, socket, (game) => addBot(game, socket, difficulty)),
   )
 
-  socket.on("manager:startGame", ({ gameId }) =>
-    withGame(gameId, socket, (game) => game.start(socket)),
-  )
+  hostAction("manager:startGame", (game) => game.start())
 
   socket.on("player:selectedAnswer", ({ gameId, data }) =>
     withGame(gameId, socket, (game) =>
@@ -412,25 +456,15 @@ io.on("connection", (socket) => {
     ),
   )
 
-  socket.on("manager:abortQuiz", ({ gameId }) =>
-    withGame(gameId, socket, (game) => game.abortRound(socket)),
-  )
+  hostAction("manager:abortQuiz", (game) => game.abortRound())
 
-  socket.on("manager:nextQuestion", ({ gameId }) =>
-    withGame(gameId, socket, (game) => game.nextRound(socket)),
-  )
+  hostAction("manager:nextQuestion", (game) => game.nextRound())
 
-  socket.on("manager:showLeaderboard", ({ gameId }) =>
-    withGame(gameId, socket, (game) => game.showLeaderboard(socket)),
-  )
+  hostAction("manager:showLeaderboard", (game) => game.showLeaderboard())
 
-  socket.on("manager:togglePause", ({ gameId }) =>
-    withGame(gameId, socket, (game) => game.togglePause(socket)),
-  )
+  hostAction("manager:togglePause", (game) => game.togglePause())
 
-  socket.on("manager:skipQuestion", ({ gameId }) =>
-    withGame(gameId, socket, (game) => game.skipQuestion(socket)),
-  )
+  hostAction("manager:skipQuestion", (game) => game.skipQuestion())
 
   socket.on("disconnect", () => {
     console.log(`A user disconnected : ${socket.id}`)

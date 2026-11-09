@@ -1,5 +1,6 @@
 "use client"
 
+import { ActionResult } from "@rahoot/common/types/game"
 import { Status, STATUS } from "@rahoot/common/types/game/status"
 import background from "@rahoot/web/assets/background.webp"
 import Button from "@rahoot/web/components/Button"
@@ -16,11 +17,13 @@ type Props = PropsWithChildren & {
   statusName: Status | undefined
   // A new object per status update; back-to-back screens of the same kind (two slides) share a name.
   statusData?: unknown
-  onNext?: () => void
-  onTogglePause?: () => void
-  onSkipQuestion?: () => void
+  onNext?: () => Promise<ActionResult>
+  onTogglePause?: () => Promise<ActionResult>
+  onSkipQuestion?: () => Promise<ActionResult>
   manager?: boolean
 }
+
+const UNLOCK_AFTER_MS = 6000
 
 const SKIPPABLE_STATUSES: Status[] = [
   STATUS.SHOW_PREPARED,
@@ -67,10 +70,30 @@ const GameWrapper = ({
     manager && statusName && SKIPPABLE_STATUSES.includes(statusName)
   const canPause = manager && statusName === STATUS.SELECT_ANSWER
 
-  const handleNext = () => {
+  // Lock until the next screen arrives, but unlock at once if the server refused the action.
+  const runLocked = async (action?: () => Promise<ActionResult>) => {
+    if (!action || isDisabled) {
+      return
+    }
+
     setIsDisabled(true)
-    onNext?.()
+    const result = await action()
+
+    if (!result.ok) {
+      setIsDisabled(false)
+    }
   }
+
+  // Failsafe: an accepted action whose screen update got lost must not lock the host out.
+  useEffect(() => {
+    if (!isDisabled) {
+      return undefined
+    }
+
+    const timer = setTimeout(() => setIsDisabled(false), UNLOCK_AFTER_MS)
+
+    return () => clearTimeout(timer)
+  }, [isDisabled])
 
   return (
     <section className="relative flex min-h-dvh w-full flex-col justify-between">
@@ -111,10 +134,7 @@ const GameWrapper = ({
                   className={clsx("bg-white px-4 text-black!", {
                     "pointer-events-none": isDisabled,
                   })}
-                  onClick={() => {
-                    setIsDisabled(true)
-                    onSkipQuestion?.()
-                  }}
+                  onClick={() => runLocked(onSkipQuestion)}
                 >
                   Skip question
                 </Button>
@@ -125,7 +145,7 @@ const GameWrapper = ({
                   className={clsx("bg-white px-4 text-black!", {
                     "pointer-events-none": isDisabled,
                   })}
-                  onClick={handleNext}
+                  onClick={() => runLocked(onNext)}
                 >
                   {next}
                 </Button>

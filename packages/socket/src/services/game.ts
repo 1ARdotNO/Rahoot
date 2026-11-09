@@ -1,4 +1,5 @@
 import {
+  ActionResult,
   Answer,
   AnswerValue,
   GameOptions,
@@ -9,16 +10,10 @@ import {
 import { Server, Socket } from "@rahoot/common/types/game/socket"
 import { Status, STATUS, StatusDataMap } from "@rahoot/common/types/game/status"
 import { usernameValidator } from "@rahoot/common/validators/auth"
-import {
-  botDifficultyValidator,
-  getChoices,
-} from "@rahoot/common/validators/quizz"
+import { getChoices } from "@rahoot/common/validators/quizz"
 import Commentator from "@rahoot/socket/utils/commentary"
-import {
-  createBot,
-  MAX_BOTS,
-  scheduleBotAnswers,
-} from "@rahoot/socket/utils/bots"
+import { fail, OK } from "@rahoot/socket/utils/actions"
+import { scheduleBotAnswers } from "@rahoot/socket/utils/bots"
 import Countdown from "@rahoot/socket/utils/countdown"
 import ResultRecorder from "@rahoot/socket/utils/recorder"
 import { createInviteCode, timeToPoint } from "@rahoot/socket/utils/game"
@@ -155,6 +150,9 @@ class Game {
     return (this.managerStatus ?? this.lastBroadcastStatus)?.name
   }
 
+  // Bumped for every new host screen; host actions carry it to reject stale clicks.
+  step = 0
+
   isManager(socket: Socket) {
     return this.manager.id === socket.id
   }
@@ -162,7 +160,8 @@ class Game {
   broadcastStatus<T extends Status>(status: T, data: StatusDataMap[T]) {
     const statusData = { name: status, data }
     this.lastBroadcastStatus = statusData
-    this.io.to(this.gameId).emit("game:status", statusData)
+    this.step += 1
+    this.io.to(this.gameId).emit("game:status", { ...statusData, step: this.step })
   }
 
   sendStatus<T extends Status>(
@@ -174,11 +173,12 @@ class Game {
 
     if (this.manager.id === target) {
       this.managerStatus = statusData
+      this.step += 1
     } else {
       this.playerStatus.set(target, statusData)
     }
 
-    this.io.to(target).emit("game:status", statusData)
+    this.io.to(target).emit("game:status", { ...statusData, step: this.step })
   }
 
   join(socket: Socket, username: string) {
@@ -219,29 +219,6 @@ class Game {
     socket.emit("game:successJoin", this.gameId)
   }
 
-  kickPlayer(socket: Socket, playerId: string) {
-    if (!this.isManager(socket)) {
-      return
-    }
-
-    const player = this.players.find((p) => p.id === playerId)
-
-    if (!player) {
-      return
-    }
-
-    this.players = this.players.filter((p) => p.id !== playerId)
-    this.playerStatus.delete(playerId)
-
-    this.io.in(playerId).socketsLeave(this.gameId)
-    this.io
-      .to(player.id)
-      .emit("game:reset", "You have been kicked by the manager")
-    this.io.to(this.manager.id).emit("manager:playerKicked", player.id)
-
-    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
-  }
-
   reconnect(socket: Socket) {
     const { clientId } = socket.handshake.auth
 
@@ -276,13 +253,19 @@ class Game {
     this.io.to(this.gameId).emit("game:paused", paused)
   }
 
-  async start(socket: Socket) {
-    if (!this.isManager(socket) || this.started) {
-      return
+  start(): ActionResult {
+    if (this.started) {
+      return fail("The game has already started")
     }
 
     this.started = true
-    const {token} = this.round
+    this.runIntro()
+
+    return OK
+  }
+
+  private async runIntro() {
+    const { token } = this.round
 
     this.broadcastStatus(STATUS.SHOW_START, {
       time: 3,
@@ -494,71 +477,53 @@ class Game {
     }
   }
 
-  addBot(socket: Socket, difficulty: unknown) {
-    const parsed = botDifficultyValidator.safeParse(difficulty)
-
-    if (!this.isManager(socket) || this.started || !parsed.success) {
-      return
-    }
-
-    if (this.players.filter((p) => p.bot).length >= MAX_BOTS) {
-      socket.emit("manager:errorMessage", `Maximum ${MAX_BOTS} bots per game`)
-
-      return
-    }
-
-    const bot = createBot(this.players, parsed.data)
-
-    this.players.push(bot)
-    this.io.to(this.manager.id).emit("manager:newPlayer", bot)
-    this.io.to(this.gameId).emit("game:totalPlayers", this.players.length)
-  }
-
-  nextRound(socket: Socket) {
-    if (!this.started || !this.isManager(socket)) {
-      return
-    }
-
+  nextRound(): ActionResult {
     const phase = this.managerPhase
 
-    if (phase !== STATUS.SHOW_LEADERBOARD && phase !== STATUS.SHOW_SLIDE) {
-      return
+    if (
+      !this.started ||
+      (phase !== STATUS.SHOW_LEADERBOARD && phase !== STATUS.SHOW_SLIDE)
+    ) {
+      return fail("Nothing to continue to right now", true)
     }
 
     this.advance()
+
+    return OK
   }
 
-  abortRound(socket: Socket) {
-    if (!this.started || !this.isManager(socket)) {
-      return
+  abortRound(): ActionResult {
+    if (!this.round.accepting) {
+      return fail("Answering is already closed", true)
     }
 
     this.setPaused(false)
     this.abortCooldown()
+
+    return OK
   }
 
-  togglePause(socket: Socket) {
-    if (!this.started || !this.isManager(socket) || !this.round.accepting) {
-      return
+  togglePause(): ActionResult {
+    if (!this.round.accepting) {
+      return fail("You can only pause while players are answering", true)
     }
 
     this.setPaused(!this.paused)
+
+    return OK
   }
 
   // Drops the current question unscored and moves on.
-  skipQuestion(socket: Socket) {
-    if (!this.started || !this.isManager(socket)) {
-      return
-    }
-
+  skipQuestion(): ActionResult {
     const phase = this.managerPhase
 
     if (
-      phase !== STATUS.SHOW_PREPARED &&
-      phase !== STATUS.SHOW_QUESTION &&
-      phase !== STATUS.SELECT_ANSWER
+      !this.started ||
+      (phase !== STATUS.SHOW_PREPARED &&
+        phase !== STATUS.SHOW_QUESTION &&
+        phase !== STATUS.SELECT_ANSWER)
     ) {
-      return
+      return fail("There's no question to skip right now", true)
     }
 
     this.round.token += 1
@@ -576,21 +541,19 @@ class Game {
     }
 
     this.advance()
+
+    return OK
   }
 
-  showLeaderboard(socket: Socket) {
-    if (!this.started || !this.isManager(socket)) {
-      return
-    }
-
-    if (this.managerPhase !== STATUS.SHOW_RESPONSES) {
-      return
+  showLeaderboard(): ActionResult {
+    if (!this.started || this.managerPhase !== STATUS.SHOW_RESPONSES) {
+      return fail("Nothing to continue to right now", true)
     }
 
     if (!this.hasNextItem) {
       this.finish()
 
-      return
+      return OK
     }
 
     const oldLeaderboard = this.tempOldLeaderboard
@@ -604,6 +567,8 @@ class Game {
     })
 
     this.tempOldLeaderboard = null
+
+    return OK
   }
 
   private advance() {

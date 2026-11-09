@@ -7,11 +7,14 @@ type ManagerStore<T> = {
   gameId: string | null
   status: Status<T> | null
   players: Player[]
+  // Server's screen counter; sent with host actions so stale clicks are rejected.
+  step: number
 
   setGameId: (_gameId: string | null) => void
   setStatus: <K extends keyof T>(_name: K, _data: T[K]) => void
   resetStatus: () => void
   setPlayers: (_players: Player[]) => void
+  setStep: (_step: number) => void
 
   reset: () => void
 }
@@ -20,6 +23,7 @@ const initialState = {
   gameId: null,
   status: null,
   players: [],
+  step: 0,
 }
 
 export const useManagerStore = create<ManagerStore<StatusDataMap>>((set) => ({
@@ -31,6 +35,7 @@ export const useManagerStore = create<ManagerStore<StatusDataMap>>((set) => ({
   resetStatus: () => set({ status: null }),
 
   setPlayers: (players) => set({ players }),
+  setStep: (step) => set({ step }),
 
   reset: () => set(initialState),
 }))

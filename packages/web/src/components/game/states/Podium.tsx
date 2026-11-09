@@ -84,6 +84,20 @@ const Podium = ({ data: { subject, top } }: Props) => {
     return () => clearInterval(interval)
   }, [apparition, top.length])
 
+  // A game can end with nobody (or only bots that left) on the board.
+  if (top.length === 0) {
+    return (
+      <section className="anim-show flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
+        <h2 className="text-4xl font-bold text-white drop-shadow-lg md:text-5xl">
+          {subject}
+        </h2>
+        <p className="text-xl font-semibold text-white/90 md:text-2xl">
+          No players this time. Thanks for watching!
+        </p>
+      </section>
+    )
+  }
+
   return (
     <>
       {apparition >= 4 && (

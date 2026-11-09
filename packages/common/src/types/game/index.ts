@@ -1,3 +1,4 @@
+import type { Status, StatusDataMap } from "./status"
 import type {
   AnswerValue,
   BotDifficulty,
@@ -60,3 +61,14 @@ export type ApiKeyInfo = {
   createdAt: string
   lastUsedAt: string | null
 }
+
+// Reply to a host action; `stale` means the screen changed before the action arrived.
+export type ActionResult =
+  | { ok: true }
+  | {
+      ok: false
+      error: string
+      stale?: boolean
+      // Sent with stale replies so a host page that missed an update can resync.
+      current?: { name: Status; data: StatusDataMap[Status]; step: number }
+    }

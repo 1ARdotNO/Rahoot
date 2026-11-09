@@ -12,6 +12,7 @@ import Room from "@rahoot/web/components/game/states/Room"
 import Slide from "@rahoot/web/components/game/states/Slide"
 import Start from "@rahoot/web/components/game/states/Start"
 import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
+import useHostAction from "@rahoot/web/hooks/useHostAction"
 import { useManagerStore } from "@rahoot/web/stores/manager"
 import { useQuestionStore } from "@rahoot/web/stores/question"
 import { GAME_STATE_COMPONENTS_MANAGER } from "@rahoot/web/utils/constants"
@@ -22,11 +23,13 @@ const ManagerGame = () => {
   const router = useRouter()
   const { gameId: gameIdParam }: { gameId?: string } = useParams()
   const { socket } = useSocket()
-  const { gameId, status, setGameId, setStatus, setPlayers, reset } =
+  const { status, setGameId, setStatus, setPlayers, setStep, reset } =
     useManagerStore()
   const { setQuestionStates } = useQuestionStore()
 
-  useEvent("game:status", ({ name, data }) => {
+  useEvent("game:status", ({ name, data, step }) => {
+    setStep(step)
+
     if (name in GAME_STATE_COMPONENTS_MANAGER) {
       setStatus(name, data)
     }
@@ -40,8 +43,9 @@ const ManagerGame = () => {
 
   useEvent(
     "manager:successReconnect",
-    ({ gameId, status, players, currentQuestion }) => {
+    ({ gameId, status, players, currentQuestion, step }) => {
       setGameId(gameId)
+      setStep(step)
       setStatus(status.name, status.data)
       setPlayers(players)
       setQuestionStates(currentQuestion)
@@ -55,48 +59,27 @@ const ManagerGame = () => {
     toast.error(message)
   })
 
-  const handleSkip = () => {
-    if (!gameId) {
-      return
-    }
+  const sendHostAction = useHostAction()
 
+  const handleSkip = () => {
     switch (status?.name) {
       case STATUS.SHOW_ROOM:
-        socket?.emit("manager:startGame", { gameId })
-
-        break
+        return sendHostAction("manager:startGame")
 
       case STATUS.SELECT_ANSWER:
-        socket?.emit("manager:abortQuiz", { gameId })
-
-        break
+        return sendHostAction("manager:abortQuiz")
 
       case STATUS.SHOW_RESPONSES:
-        socket?.emit("manager:showLeaderboard", { gameId })
-
-        break
+        return sendHostAction("manager:showLeaderboard")
 
       case STATUS.SHOW_LEADERBOARD:
-        socket?.emit("manager:nextQuestion", { gameId })
-
-        break
+        return sendHostAction("manager:nextQuestion")
 
       case STATUS.SHOW_SLIDE:
-        socket?.emit("manager:nextQuestion", { gameId })
+        return sendHostAction("manager:nextQuestion")
 
-        break
-    }
-  }
-
-  const handleTogglePause = () => {
-    if (gameId) {
-      socket?.emit("manager:togglePause", { gameId })
-    }
-  }
-
-  const handleSkipQuestion = () => {
-    if (gameId) {
-      socket?.emit("manager:skipQuestion", { gameId })
+      default:
+        return Promise.resolve({ ok: false, error: "no action" } as const)
     }
   }
 
@@ -154,8 +137,8 @@ const ManagerGame = () => {
       statusName={status?.name}
       statusData={status?.data}
       onNext={handleSkip}
-      onTogglePause={handleTogglePause}
-      onSkipQuestion={handleSkipQuestion}
+      onTogglePause={() => sendHostAction("manager:togglePause")}
+      onSkipQuestion={() => sendHostAction("manager:skipQuestion")}
       manager
     >
       {component}

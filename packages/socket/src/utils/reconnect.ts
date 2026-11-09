@@ -24,6 +24,7 @@ export const reconnectManager = (game: Game, socket: Socket) => {
 
   socket.emit("manager:successReconnect", {
     gameId: game.gameId,
+    step: game.step,
     currentQuestion: game.questionProgress,
     status,
     players: game.players,

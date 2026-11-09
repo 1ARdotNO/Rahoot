@@ -1,5 +1,6 @@
 import { Server as ServerIO, Socket as SocketIO } from "socket.io"
 import {
+  ActionResult,
   ApiKeyInfo,
   AnswerValue,
   BotDifficulty,
@@ -27,6 +28,9 @@ export type MessageWithoutStatus<T = any> = {
   data: T
 }
 
+// `step` is the screen the host clicked on; the server ignores actions for screens already gone.
+export type HostAction = { gameId?: string; step?: number }
+
 export type MessageGameId = {
   gameId?: string
 }
@@ -35,7 +39,11 @@ export interface ServerToClientEvents {
   connect: () => void
 
   // Game events
-  "game:status": (_data: { name: Status; data: StatusDataMap[Status] }) => void
+  "game:status": (_data: {
+    name: Status
+    data: StatusDataMap[Status]
+    step: number
+  }) => void
   "game:successRoom": (_data: string) => void
   "game:successJoin": (_gameId: string) => void
   "game:totalPlayers": (_count: number) => void
@@ -60,6 +68,7 @@ export interface ServerToClientEvents {
   "manager:successReconnect": (_data: {
     gameId: string
     status: { name: Status; data: StatusDataMap[Status] }
+    step: number
     players: Player[]
     currentQuestion: GameUpdateQuestion
   }) => void
@@ -108,12 +117,12 @@ export interface ClientToServerEvents {
   "manager:reconnect": (_message: { gameId: string }) => void
   "manager:kickPlayer": (_message: { gameId: string; playerId: string }) => void
   "manager:addBot": (_message: { gameId: string; difficulty: BotDifficulty }) => void
-  "manager:startGame": (_message: MessageGameId) => void
-  "manager:abortQuiz": (_message: MessageGameId) => void
-  "manager:nextQuestion": (_message: MessageGameId) => void
-  "manager:showLeaderboard": (_message: MessageGameId) => void
-  "manager:togglePause": (_message: MessageGameId) => void
-  "manager:skipQuestion": (_message: MessageGameId) => void
+  "manager:startGame": (_message: HostAction, _ack: (_result: ActionResult) => void) => void
+  "manager:abortQuiz": (_message: HostAction, _ack: (_result: ActionResult) => void) => void
+  "manager:nextQuestion": (_message: HostAction, _ack: (_result: ActionResult) => void) => void
+  "manager:showLeaderboard": (_message: HostAction, _ack: (_result: ActionResult) => void) => void
+  "manager:togglePause": (_message: HostAction, _ack: (_result: ActionResult) => void) => void
+  "manager:skipQuestion": (_message: HostAction, _ack: (_result: ActionResult) => void) => void
 
   // Quiz management
   "manager:getQuizz": (_quizzId: string) => void
