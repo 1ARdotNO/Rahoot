@@ -1,7 +1,7 @@
 FROM node:26.13.0-alpine AS base
 
-# Enable and prepare pnpm via Corepack
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+# Node 25+ no longer ships corepack, so install pnpm directly.
+RUN npm install -g pnpm@9.15.9
 
 # ----- DEPENDENCIES -----
 FROM base AS deps
@@ -45,9 +45,6 @@ RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nodejs \
   && apk add --no-cache su-exec
 
-
-# Enable pnpm in the runtime image
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # Copy configuration files
 COPY pnpm-workspace.yaml package.json ./
