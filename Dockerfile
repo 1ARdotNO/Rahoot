@@ -1,7 +1,7 @@
-FROM node:22-alpine AS base
+FROM node:26.13.0-alpine AS base
 
-# Enable and prepare pnpm via Corepack
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+# Node 25+ no longer ships corepack, so install pnpm directly.
+RUN npm install -g pnpm@9.15.9
 
 # ----- DEPENDENCIES -----
 FROM base AS deps
@@ -37,7 +37,7 @@ WORKDIR /app/packages/socket
 RUN if [ -f "tsconfig.json" ]; then pnpm build; fi
 
 # ----- RUNNER -----
-FROM node:22-alpine AS runner
+FROM node:26.13.0-alpine AS runner
 WORKDIR /app
 
 # Create a non-root user for better security
@@ -45,9 +45,6 @@ RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nodejs \
   && apk add --no-cache su-exec
 
-
-# Enable pnpm in the runtime image
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # Copy configuration files
 COPY pnpm-workspace.yaml package.json ./

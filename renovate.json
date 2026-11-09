@@ -5,7 +5,9 @@
     ":dependencyDashboard",
     "group:allNonMajor"
   ],
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
   "rangeStrategy": "bump",
@@ -17,53 +19,86 @@
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
-    "schedule": ["before 6am on monday"]
+    "schedule": [
+      "before 6am on monday"
+    ]
   },
   "vulnerabilityAlerts": {
-    "labels": ["security"],
+    "labels": [
+      "security"
+    ],
     "automerge": true
   },
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Keep the Dockerfile's corepack pnpm pin in step with packageManager.",
-      "managerFilePatterns": ["/(^|\/)Dockerfile$/"],
-      "matchStrings": ["corepack prepare pnpm@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "description": "Keep the Dockerfile's pnpm pin in step with packageManager.",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
+      "matchStrings": [
+        "npm install -g pnpm@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
       "depNameTemplate": "pnpm",
       "datasourceTemplate": "npm"
     }
   ],
   "packageRules": [
     {
-      "description": "Heavy automerge for everything — CI (lint, typecheck, build, smoke game, Docker image boot, CodeQL, Trivy) is the safety net, so anything that stays green merges itself.",
-      "matchManagers": ["npm", "github-actions", "dockerfile", "custom.regex"],
+      "description": "Heavy automerge for everything \u2014 CI (lint, typecheck, build, smoke game, Docker image boot, CodeQL, Trivy) is the safety net, so anything that stays green merges itself.",
+      "matchManagers": [
+        "npm",
+        "github-actions",
+        "dockerfile",
+        "custom.regex"
+      ],
       "automerge": true
     },
     {
       "description": "Group all GitHub Actions bumps into one PR.",
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github-actions"
     },
     {
       "description": "Move Node.js together: the Docker base image and the CI runtime must match.",
-      "matchDepNames": ["node"],
+      "matchDepNames": [
+        "node"
+      ],
       "groupName": "Node.js"
     },
     {
       "description": "Move pnpm together: packageManager and the Dockerfile's corepack pin must match.",
-      "matchDepNames": ["pnpm"],
+      "matchDepNames": [
+        "pnpm"
+      ],
       "groupName": "pnpm"
     },
     {
       "description": "Hold pnpm majors: newer majors refuse to run unapproved dependency build scripts (esbuild, sharp), which needs a config migration, not a version bump.",
-      "matchDepNames": ["pnpm"],
-      "matchUpdateTypes": ["major"],
+      "matchDepNames": [
+        "pnpm"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
       "enabled": false
     },
     {
       "description": "Hold TypeScript on v6 until typescript-eslint supports the v7 native compiler (same hold as in Jync).",
-      "matchPackageNames": ["typescript"],
+      "matchPackageNames": [
+        "typescript"
+      ],
       "allowedVersions": "<7"
+    },
+    {
+      "description": "Hold ESLint 10 until eslint-plugin-react and eslint-plugin-import (pulled in by eslint-config-next) support it; on v10 they crash with 'contextOrFilename.getFilename is not a function'.",
+      "matchPackageNames": [
+        "eslint",
+        "@eslint/js"
+      ],
+      "allowedVersions": "<10"
     }
   ]
 }
