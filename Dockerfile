@@ -41,8 +41,9 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 # Create a non-root user for better security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
+RUN addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nodejs \
+  && apk add --no-cache su-exec
 
 
 # Enable pnpm in the runtime image
@@ -71,6 +72,9 @@ EXPOSE 3000 3001
 # Environment variables
 ENV NODE_ENV=production
 ENV CONFIG_PATH=/app/config
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 # Start both services (Next.js web app + Socket server)
 CMD ["sh", "-c", "node packages/web/server.js & node packages/socket/dist/index.cjs"]

@@ -1,0 +1,3 @@
+# DS-0002 (no USER instruction): the entrypoint starts as root only to chown the
+# mounted config volume, then drops to the unprivileged `nodejs` user via su-exec.
+DS-0002

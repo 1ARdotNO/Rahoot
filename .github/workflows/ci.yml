@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Enable pnpm (version from packageManager)
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Build
+        run: pnpm build
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Enable pnpm (version from packageManager)
+        run: corepack enable
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build socket server
+        run: pnpm --filter @rahoot/socket build
+      - name: Smoke test (plays a full game against the built server)
+        run: pnpm test
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -t rahoot:ci .
+      - name: Boot image and check both services answer
+        run: |
+          docker run -d --name rahoot -p 3000:3000 -p 3001:3001 rahoot:ci
+          for i in $(seq 1 30); do
+            web=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/manager || true)
+            socket=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001/socket.io/?EIO=4&transport=polling" || true)
+            if [ "$web" = "200" ] && [ "$socket" = "200" ]; then echo "image healthy after ~${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo "web=$web socket=$socket"; docker logs rahoot; exit 1
+
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high

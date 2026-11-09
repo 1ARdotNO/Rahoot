@@ -331,6 +331,14 @@ Errors are sent as `manager:errorMessage`. Quizzes are validated on save, and th
 
 ## 📝 Contributing
 
+Before opening a pull request, run the same checks as CI:
+
+```bash
+pnpm lint && pnpm typecheck && pnpm build && pnpm test
+```
+
+`pnpm test` boots the built socket server and plays a complete game against it. CI also builds the Docker image and checks that it starts, and runs CodeQL and Trivy. Dependency updates come from Renovate and merge automatically once all checks pass.
+
 1. Fork the repository
 2. Create a new branch (e.g., `feat/my-feature`)
 3. Make your changes
