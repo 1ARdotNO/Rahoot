@@ -96,7 +96,15 @@ const GameWrapper = ({
   }, [isDisabled])
 
   return (
-    <section className="relative flex min-h-dvh w-full flex-col justify-between">
+    <section
+      className={clsx(
+        "relative flex w-full flex-col justify-between",
+        // Slides must fit the screen exactly so their text can be sized to the space left.
+        statusName === STATUS.SHOW_SLIDE
+          ? "h-dvh overflow-hidden"
+          : "min-h-dvh",
+      )}
+    >
       <div className="fixed top-0 left-0 -z-10 h-full w-full bg-orange-600 opacity-70">
         <Image
           className="pointer-events-none h-full w-full object-cover opacity-60"

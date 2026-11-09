@@ -54,12 +54,15 @@ const ChoiceFields = ({
 }) => {
   const isCorrect = (index: number) =>
     item.type === "single"
-      ? item.solution === index
+      ? item.solution === index || Boolean(item.alsoCorrect?.includes(index))
       : item.solutions.includes(index)
 
   const toggleCorrect = (index: number) => {
     if (item.type === "single") {
-      onChange({ solution: index })
+      onChange({
+        solution: index,
+        alsoCorrect: item.alsoCorrect?.filter((s) => s !== index),
+      })
 
       return
     }
@@ -82,6 +85,7 @@ const ChoiceFields = ({
       onChange({
         answers,
         solution: item.solution === index ? 0 : shift(item.solution),
+        alsoCorrect: item.alsoCorrect?.filter((s) => s !== index).map(shift),
       })
     } else {
       onChange({

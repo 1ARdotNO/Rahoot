@@ -22,6 +22,8 @@ const singleQuestion = z.object({
   type: z.literal("single"),
   answers: z.array(answerText).min(2).max(4),
   solution: z.number().int().min(0),
+  // Players still pick one answer; any of these also scores as correct.
+  alsoCorrect: z.array(z.number().int().min(0)).max(3).optional(),
 })
 
 const multipleQuestion = z.object({
@@ -80,6 +82,14 @@ export const quizzItemValidator = z.preprocess(
       case "single":
         if (item.solution >= item.answers.length) {
           ctx.addIssue({ code: "custom", message: "Solution index out of range" })
+        }
+
+        if (
+          item.alsoCorrect &&
+          (item.alsoCorrect.some((s) => s >= item.answers.length || s === item.solution) ||
+            new Set(item.alsoCorrect).size !== item.alsoCorrect.length)
+        ) {
+          ctx.addIssue({ code: "custom", message: "Invalid alsoCorrect indexes" })
         }
 
         break

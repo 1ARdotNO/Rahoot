@@ -117,7 +117,12 @@ const compactChoices = (item: DraftItem): QuizzItem => {
   const answers = kept.map(({ text }) => text)
 
   if (item.type === "single") {
-    return { ...item, answers, solution: remap(item.solution) }
+    return {
+      ...item,
+      answers,
+      solution: remap(item.solution),
+      alsoCorrect: item.alsoCorrect?.map(remap).filter((s) => s >= 0),
+    }
   }
 
   return {

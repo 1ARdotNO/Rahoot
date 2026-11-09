@@ -92,6 +92,7 @@ host.emit("manager:saveQuizz", {
     questions: [
       { type: "slide", title: "Welcome", content: "**Hi**" },
       { ...timing, type: "single", question: "single", answers: ["a", "b"], solution: 1 },
+      { ...timing, type: "single", question: "either", answers: ["a", "b", "c"], solution: 0, alsoCorrect: [2] },
       { ...timing, type: "multiple", question: "multi", answers: ["a", "b", "c"], solutions: [0, 2] },
       { ...timing, type: "truefalse", question: "tf", solution: false },
       { ...timing, type: "typed", question: "typed", acceptedAnswers: ["Oslo"] },
@@ -105,6 +106,8 @@ assert.equal(imageResponse.status, 200)
 assert.equal(imageResponse.headers.get("content-type"), "image/png")
 host.emit("manager:saveQuizz", { quizz: { subject: "bad", questions: [{ type: "single", question: "q", answers: ["one"], solution: 0, ...timing }] }, images: [] })
 assert.match(await once(host, "manager:errorMessage"), /^Invalid quizz/)
+host.emit("manager:saveQuizz", { quizz: { subject: "bad", questions: [{ type: "single", question: "q", answers: ["a", "b"], solution: 0, alsoCorrect: [0], ...timing }] }, images: [] })
+assert.match(await once(host, "manager:errorMessage"), /alsoCorrect/)
 ok("quiz save, validation, image upload and serving")
 
 host.emit("game:create", { quizzId: "smoke", options: { streakBonus: true } })
@@ -128,7 +131,7 @@ assert.equal(stale.stale, true)
 assert.equal((await act("manager:nextQuestion", gameId)).ok, true)
 ok("start, slide, stale host click rejected")
 
-const answers = [1, [0, 2], 1, "oslo", 41]
+const answers = [1, 2, [0, 2], 1, "oslo", 41]
 const results = []
 player.on("game:status", (s) => trace.push(`P:${s.name}`))
 host.on("game:status", (s) => trace.push(`H:${s.name}`))
@@ -159,17 +162,17 @@ for (const [index, answer] of answers.entries()) {
   }
 }
 
-assert.equal(results.length, 5)
+assert.equal(results.length, 6)
 assert.ok(results.every((r) => r.correct), "player answered every question correctly")
-assert.deepEqual(results.map((r) => r.streak), [1, 2, 3, 4, 5])
+assert.deepEqual(results.map((r) => r.streak), [1, 2, 3, 4, 5, 6])
 assert.equal(finished.data.top.length, 2)
-ok("all five question types scored, streaks counted, podium shown")
+ok("all five question types and alsoCorrect scored, streaks counted, podium shown")
 
 await new Promise((r) => setTimeout(r, 300))
 const resultFiles = fs.readdirSync(path.join(configDir, "results"))
 const record = JSON.parse(fs.readFileSync(path.join(configDir, "results", resultFiles[0]), "utf-8"))
 assert.equal(record.completed, true)
-assert.equal(record.rounds.length, 5)
+assert.equal(record.rounds.length, 6)
 ok("results saved")
 
 console.log("\nSmoke test passed")

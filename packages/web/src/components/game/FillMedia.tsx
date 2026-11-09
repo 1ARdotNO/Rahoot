@@ -5,12 +5,20 @@ type Props = {
   alt: string
   kind?: "image" | "video"
   className?: string
+  // Smallest share of the screen the media keeps when other content needs room.
+  minHeight?: string
 }
 
 // Fills whatever height is left in a flex column and scales to fit without cropping;
 // absolute positioning keeps the media's own size from stretching the page.
-const FillMedia = ({ src, alt, kind = "image", className }: Props) => (
-  <div className={clsx("relative min-h-[30vh] w-full flex-1", className)}>
+const FillMedia = ({
+  src,
+  alt,
+  kind = "image",
+  className,
+  minHeight = "min-h-[30vh]",
+}: Props) => (
+  <div className={clsx("relative w-full flex-1", minHeight, className)}>
     {kind === "video" ? (
       <video
         src={src}

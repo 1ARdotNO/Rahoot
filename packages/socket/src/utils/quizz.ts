@@ -48,7 +48,12 @@ const shuffleChoices = (item: QuizzQuestion): QuizzQuestion => {
   const answers = order.map((index) => item.answers[index])
 
   if (item.type === "single") {
-    return { ...item, answers, solution: order.indexOf(item.solution) }
+    return {
+      ...item,
+      answers,
+      solution: order.indexOf(item.solution),
+      alsoCorrect: item.alsoCorrect?.map((s) => order.indexOf(s)),
+    }
   }
 
   return {
@@ -135,7 +140,7 @@ export const evaluateAnswer = (
 
   switch (item.type) {
     case "single":
-      return exact(value === item.solution)
+      return exact(value === item.solution || Boolean(item.alsoCorrect?.includes(value as number)))
 
     case "truefalse":
       return exact(value === (item.solution ? 0 : 1))
@@ -175,7 +180,9 @@ export const evaluateAnswer = (
 export const describeSolution = (item: QuizzQuestion): string => {
   switch (item.type) {
     case "single":
-      return item.answers[item.solution]
+      return [item.solution, ...(item.alsoCorrect ?? [])]
+        .map((s) => item.answers[s])
+        .join(" / ")
 
     case "multiple":
       return item.solutions.map((s) => item.answers[s]).join(", ")
@@ -194,7 +201,7 @@ export const describeSolution = (item: QuizzQuestion): string => {
 export const correctChoiceIndexes = (item: QuizzQuestion): number[] => {
   switch (item.type) {
     case "single":
-      return [item.solution]
+      return [item.solution, ...(item.alsoCorrect ?? [])]
 
     case "multiple":
       return item.solutions
