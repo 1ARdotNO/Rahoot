@@ -209,3 +209,26 @@ export const correctChoiceIndexes = (item: QuizzQuestion): number[] => {
 
 export const streakBonus = (streak: number) =>
   Math.min(Math.max(streak - 1, 0) * STREAK_BONUS_STEP, STREAK_BONUS_MAX)
+
+export const describeAnswer = (
+  item: QuizzQuestion,
+  value: AnswerValue | undefined,
+): string | null => {
+  if (value === undefined) {
+    return null
+  }
+
+  if (typeof value === "string") {
+    return value.trim()
+  }
+
+  if (item.type === "slider") {
+    return String(value)
+  }
+
+  const choices = getChoices(item)
+
+  return (Array.isArray(value) ? value : [value])
+    .map((index) => choices[index] ?? `#${index}`)
+    .join(", ")
+}

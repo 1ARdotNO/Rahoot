@@ -21,6 +21,11 @@ const OPTION_LABELS: { key: keyof GameOptions; label: string; hint: string }[] =
       label: "Streak bonus",
       hint: "+100 per consecutive correct answer, up to +500",
     },
+    {
+      key: "saveResults",
+      label: "Save results",
+      hint: "Keep a record of every answer to review later",
+    },
   ]
 
 type Props = {
@@ -31,6 +36,7 @@ type Props = {
   onEdit: (_id: string) => void
   onDelete: (_id: string) => void
   onCreate: () => void
+  onShowResults: () => void
 }
 
 const SelectQuizz = ({
@@ -41,12 +47,14 @@ const SelectQuizz = ({
   onEdit,
   onDelete,
   onCreate,
+  onShowResults,
 }: Props) => {
   const [selected, setSelected] = useState<string | null>(null)
   const [options, setOptions] = useState<GameOptions>({
     shuffleQuestions: false,
     shuffleAnswers: false,
     streakBonus: false,
+    saveResults: true,
   })
 
   const handleSelect = (id: string) => () => {
@@ -106,7 +114,16 @@ const SelectQuizz = ({
         </div>
       )}
       <div className="flex flex-col items-center justify-center">
-        <h1 className="mb-2 text-2xl font-bold">Select a quizz</h1>
+        <div className="mb-2 flex w-full items-center justify-between">
+          <h1 className="text-2xl font-bold">Select a quizz</h1>
+          <button
+            type="button"
+            onClick={onShowResults}
+            className="rounded-md px-2 py-1 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+          >
+            📊 Results
+          </button>
+        </div>
         {quizzList.length === 0 && (
           <p className="py-4 text-center text-gray-500">
             No quizzes yet. Create your first one below!

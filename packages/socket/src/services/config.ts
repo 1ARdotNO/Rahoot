@@ -31,25 +31,27 @@ const detectImageExtension = (buffer: Buffer): string | null => {
 
 const inContainerPath = process.env.CONFIG_PATH
 
-const getPath = (path: string = "") =>
+export const getPath = (path: string = "") =>
   inContainerPath
     ? resolve(inContainerPath, path)
     : resolve(process.cwd(), "../../config", path)
 
 const SAFE_OWNER = /^[A-Za-z0-9_-]{1,128}$/u
 
-// OIDC users get config/quizz/users/<owner>; the shared password login keeps config/quizz.
-const quizzDir = (owner: string | null) => {
+// OIDC users get <base>/users/<owner>; the shared password login keeps <base>.
+export const ownerDir = (base: string, owner: string | null) => {
   if (owner === null) {
-    return "quizz"
+    return base
   }
 
   if (!SAFE_OWNER.test(owner)) {
-    throw new Error("Invalid quizz owner")
+    throw new Error("Invalid owner")
   }
 
-  return `quizz/users/${owner}`
+  return `${base}/users/${owner}`
 }
+
+const quizzDir = (owner: string | null) => ownerDir("quizz", owner)
 
 class Config {
   static init() {

@@ -130,6 +130,7 @@ export const gameOptionsValidator = z.object({
   shuffleQuestions: z.boolean().default(false),
   shuffleAnswers: z.boolean().default(false),
   streakBonus: z.boolean().default(false),
+  saveResults: z.boolean().default(true),
 })
 
 export type QuizzItem = z.output<typeof itemShape>

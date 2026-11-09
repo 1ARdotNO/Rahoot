@@ -6,10 +6,16 @@ import {
   QuizzSummary,
   QuizzWithId,
 } from "@rahoot/common/types/game"
+import {
+  GameResult,
+  GameResultSummary,
+} from "@rahoot/common/types/game/results"
 import { STATUS } from "@rahoot/common/types/game/status"
 import ManagerPassword from "@rahoot/web/components/game/create/ManagerPassword"
 import QuizzEditor from "@rahoot/web/components/game/create/QuizzEditor"
 import SelectQuizz from "@rahoot/web/components/game/create/SelectQuizz"
+import ResultDetail from "@rahoot/web/components/game/results/ResultDetail"
+import ResultsList from "@rahoot/web/components/game/results/ResultsList"
 import { useEvent, useSocket } from "@rahoot/web/contexts/socketProvider"
 import useManagerSession from "@rahoot/web/hooks/useManagerSession"
 import { useManagerStore } from "@rahoot/web/stores/manager"
@@ -21,6 +27,8 @@ type EditorMode =
   | { type: "list" }
   | { type: "create" }
   | { type: "edit"; quizz: QuizzWithId }
+  | { type: "results" }
+  | { type: "result"; result: GameResult }
 
 const Manager = () => {
   const { setGameId, setStatus } = useManagerStore()
@@ -30,6 +38,7 @@ const Manager = () => {
   const [isAuth, setIsAuth] = useState(false)
   const [quizzList, setQuizzList] = useState<QuizzSummary[]>([])
   const [editorMode, setEditorMode] = useState<EditorMode>({ type: "list" })
+  const [results, setResults] = useState<GameResultSummary[] | null>(null)
   const session = useManagerSession(() => {
     setIsAuth(false)
     setQuizzList([])
@@ -69,6 +78,17 @@ const Manager = () => {
     toast.success("Quiz deleted")
   })
 
+  useEvent("manager:resultsList", (list) => {
+    setResults(list)
+    setEditorMode((mode) =>
+      mode.type === "result" ? { type: "results" } : mode,
+    )
+  })
+
+  useEvent("manager:resultData", (result) => {
+    setEditorMode({ type: "result", result })
+  })
+
   useEvent("manager:quizzData", (quizz) => {
     setEditorMode({ type: "edit", quizz })
   })
@@ -101,6 +121,26 @@ const Manager = () => {
     return <ManagerPassword methods={session.methods} onSubmit={handleAuth} />
   }
 
+  if (editorMode.type === "results") {
+    return (
+      <ResultsList
+        results={results}
+        onOpen={(id) => socket?.emit("manager:getResult", id)}
+        onBack={() => setEditorMode({ type: "list" })}
+      />
+    )
+  }
+
+  if (editorMode.type === "result") {
+    return (
+      <ResultDetail
+        result={editorMode.result}
+        onBack={() => setEditorMode({ type: "results" })}
+        onDelete={(id) => socket?.emit("manager:deleteResult", id)}
+      />
+    )
+  }
+
   if (editorMode.type === "create") {
     return (
       <QuizzEditor
@@ -129,6 +169,11 @@ const Manager = () => {
       onEdit={handleEdit}
       onDelete={handleDelete}
       onCreate={() => setEditorMode({ type: "create" })}
+      onShowResults={() => {
+        setResults(null)
+        setEditorMode({ type: "results" })
+        socket?.emit("manager:getResults")
+      }}
     />
   )
 }

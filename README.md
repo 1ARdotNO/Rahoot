@@ -192,6 +192,12 @@ By default the manager page uses the shared `managerPassword`. You can also log 
 
 `WEB_ORIGIN` must be the real web URL (not `*`) when OIDC is enabled. If `OIDC_ALLOWED_GROUPS` is not set, every account on your provider can manage quizzes, so either set it or restrict the client to a group in Pocket ID. Login sessions are kept in memory and last 12 hours, so restarting the server logs everyone out.
 
+### 4. Game results
+
+Every game is saved by default (turn off **Save results** in the game options to skip it). Results include the final ranking and every player's answer to every question, and are written after each question, so unfinished games are kept too. Open **📊 Results** on the manager page to review them or download a CSV.
+
+Files are stored as JSON in `config/results/`, or `config/results/users/<user id>/` for OIDC users, who only see their own.
+
 ## 🎮 How to Play
 
 1. Access the manager interface at http://localhost:3000/manager

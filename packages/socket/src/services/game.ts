@@ -12,6 +12,7 @@ import { usernameValidator } from "@rahoot/common/validators/auth"
 import { getChoices } from "@rahoot/common/validators/quizz"
 import Commentator from "@rahoot/socket/utils/commentary"
 import Countdown from "@rahoot/socket/utils/countdown"
+import ResultRecorder from "@rahoot/socket/utils/recorder"
 import { createInviteCode, timeToPoint } from "@rahoot/socket/utils/game"
 import {
   describeSolution,
@@ -78,7 +79,16 @@ class Game {
     isPaused: () => this.paused,
   })
 
-  constructor(io: Server, socket: Socket, quizz: Quizz, options: GameOptions) {
+  recorder: ResultRecorder
+
+  constructor(
+    io: Server,
+    socket: Socket,
+    quizz: Quizz,
+    setup: { options: GameOptions; owner: string | null; quizzId: string },
+  ) {
+    const { options, owner, quizzId } = setup
+
     if (!io) {
       throw new Error("Socket server not initialized")
     }
@@ -88,6 +98,12 @@ class Game {
     this.started = false
     this.quizz = prepareQuizz(quizz, options)
     this.options = options
+    this.recorder = new ResultRecorder({
+      owner,
+      quizzId,
+      subject: quizz.subject,
+      options,
+    })
 
     this.inviteCode = createInviteCode()
     this.manager = {
@@ -406,6 +422,14 @@ class Game {
       buildResponses(item, this.round.playersAnswers),
     )
 
+    this.recorder.recordRound({
+      item,
+      questionNumber: this.questionProgress.current,
+      players: this.players,
+      answers: this.round.playersAnswers,
+      outcomes,
+    })
+
     this.leaderboard = this.players.map((p) => ({ ...p }))
     this.tempOldLeaderboard = oldLeaderboard
 
@@ -509,6 +533,14 @@ class Game {
     this.setPaused(false)
     this.abortCooldown()
 
+    if (isQuestion(this.currentItem)) {
+      this.recorder.recordSkip(
+        this.currentItem,
+        this.questionProgress.current,
+        this.players,
+      )
+    }
+
     this.advance()
   }
 
@@ -557,6 +589,7 @@ class Game {
     this.managerStatus = null
 
     const ranking = [...this.players].sort((a, b) => b.points - a.points)
+    this.recorder.finish(this.players)
 
     this.broadcastStatus(STATUS.FINISHED, {
       subject: this.quizz.subject,

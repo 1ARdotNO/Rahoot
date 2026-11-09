@@ -8,6 +8,7 @@ import {
   QuizzSummary,
   QuizzWithId,
 } from "."
+import { GameResult, GameResultSummary } from "./results"
 import { Status, StatusDataMap } from "./status"
 
 export type Server = ServerIO<ClientToServerEvents, ServerToClientEvents>
@@ -68,6 +69,8 @@ export interface ServerToClientEvents {
   // `token` is only sent when a new session is created, not on resume.
   "manager:session": (_session: { name: string; token?: string }) => void
   "manager:sessionExpired": () => void
+  "manager:resultsList": (_results: GameResultSummary[]) => void
+  "manager:resultData": (_result: GameResult) => void
   "manager:quizzData": (_quizz: QuizzWithId) => void
   "manager:quizzSaved": (_quizz: QuizzWithId) => void
   "manager:quizzDeleted": (_quizzId: string) => void
@@ -107,6 +110,11 @@ export interface ClientToServerEvents {
     images: { questionIndex: number; data: string }[]
   }) => void
   "manager:deleteQuizz": (_quizzId: string) => void
+
+  // Results
+  "manager:getResults": () => void
+  "manager:getResult": (_resultId: string) => void
+  "manager:deleteResult": (_resultId: string) => void
 
   // Player actions
   "player:join": (_inviteCode: string) => void

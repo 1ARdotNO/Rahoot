@@ -9,6 +9,7 @@ import env from "@rahoot/socket/env"
 import Config, { MAX_IMAGE_BYTES } from "@rahoot/socket/services/config"
 import Game from "@rahoot/socket/services/game"
 import Registry from "@rahoot/socket/services/registry"
+import Results from "@rahoot/socket/services/results"
 import { withGame } from "@rahoot/socket/utils/game"
 import { handleHttp } from "@rahoot/socket/http"
 import {
@@ -236,6 +237,38 @@ io.on("connection", (socket) => {
     }),
   )
 
+  socket.on("manager:getResults", () =>
+    requireManager(({ owner }) => {
+      socket.emit("manager:resultsList", Results.list(owner))
+    }),
+  )
+
+  socket.on("manager:getResult", (resultId) =>
+    requireManager(({ owner }) => {
+      const result = Results.get(owner, resultId)
+
+      if (!result) {
+        socket.emit("manager:errorMessage", "Result not found")
+
+        return
+      }
+
+      socket.emit("manager:resultData", result)
+    }),
+  )
+
+  socket.on("manager:deleteResult", (resultId) =>
+    requireManager(({ owner }) => {
+      if (!Results.delete(owner, resultId)) {
+        socket.emit("manager:errorMessage", "Result not found")
+
+        return
+      }
+
+      socket.emit("manager:resultsList", Results.list(owner))
+    }),
+  )
+
   socket.on("game:create", (payload) =>
     requireManager(({ owner }) => {
       const options = gameOptionsValidator.safeParse(payload?.options ?? {})
@@ -253,7 +286,11 @@ io.on("connection", (socket) => {
         return
       }
 
-      const game = new Game(io, socket, result.quizz, options.data)
+      const game = new Game(io, socket, result.quizz, {
+        options: options.data,
+        owner,
+        quizzId: result.quizz.id,
+      })
       registry.addGame(game)
     }),
   )
