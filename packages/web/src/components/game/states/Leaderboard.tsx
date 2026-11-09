@@ -1,24 +1,28 @@
 import { ManagerStatusDataMap } from "@rahoot/common/types/game/status"
-import { AnimatePresence, motion, useSpring, useTransform } from "motion/react"
+import { playScoreCountUp } from "@rahoot/web/utils/scoreSound"
+import { animate, AnimatePresence, motion } from "motion/react"
 import { useEffect, useState } from "react"
 
 type Props = {
   data: ManagerStatusDataMap["SHOW_LEADERBOARD"]
 }
 
+// Long enough for the count to be felt (and heard), short enough to keep the game moving.
+export const COUNT_UP_S = 1.2
+
 const AnimatedPoints = ({ from, to }: { from: number; to: number }) => {
-  const spring = useSpring(from, { stiffness: 1000, damping: 30 })
-  const display = useTransform(spring, (value) => Math.round(value))
   const [displayValue, setDisplayValue] = useState(from)
 
   useEffect(() => {
-    spring.set(to)
-    const unsubscribe = display.on("change", (latest) => {
-      setDisplayValue(latest)
+    // Ease-out cubic, matched by the tick spacing in scoreSound.
+    const controls = animate(from, to, {
+      duration: COUNT_UP_S,
+      ease: [0.33, 1, 0.68, 1],
+      onUpdate: (latest) => setDisplayValue(Math.round(latest)),
     })
 
-    return unsubscribe
-  }, [to, spring, display])
+    return () => controls.stop()
+  }, [from, to])
 
   return <span className="drop-shadow-md">{displayValue}</span>
 }
@@ -37,9 +41,19 @@ const Leaderboard = ({
     setDisplayedLeaderboard(oldLeaderboard)
     setIsAnimating(false)
 
+    const anyGain = leaderboard.some(
+      (player) =>
+        player.points !==
+        oldLeaderboard.find((old) => old.id === player.id)?.points,
+    )
+
     const timer = setTimeout(() => {
       setIsAnimating(true)
       setDisplayedLeaderboard(leaderboard)
+
+      if (anyGain) {
+        playScoreCountUp(COUNT_UP_S)
+      }
     }, 1600)
 
     return () => {
