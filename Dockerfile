@@ -1,4 +1,4 @@
-FROM node:26.13.0-alpine AS base
+FROM node:26.13.1-alpine AS base
 
 # Node 25+ no longer ships corepack, so install pnpm directly.
 RUN npm install -g pnpm@9.15.9
@@ -37,7 +37,7 @@ WORKDIR /app/packages/socket
 RUN if [ -f "tsconfig.json" ]; then pnpm build; fi
 
 # ----- RUNNER -----
-FROM node:26.13.0-alpine AS runner
+FROM node:26.13.1-alpine AS runner
 WORKDIR /app
 
 # Create a non-root user for better security
