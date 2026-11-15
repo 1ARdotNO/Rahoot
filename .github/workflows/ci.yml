@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "26.13.0"
+          node-version: "26.13.1"
       - name: Install pnpm (version from packageManager)
         uses: pnpm/action-setup@v6
       - name: Install
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: "26.13.0"
+          node-version: "26.13.1"
       - name: Install pnpm (version from packageManager)
         uses: pnpm/action-setup@v6
       - name: Install
